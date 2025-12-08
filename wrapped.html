@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Todoist Wrapped</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script> <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect x='8' y='8' width='112' height='112' rx='28' fill='%23e44232'/%3E%3Cpath d='M36 68 L58 90 L94 38' stroke='white' stroke-width='14' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='94' cy='38' r='9' fill='white'/%3E%3C/svg%3E">
+
+    <style>
+        body { margin: 0; font-family: 'Inter', system-ui, sans-serif; background-color: #000; color: #fff; overflow: hidden; }
+        
+        #stage {
+            width: 100vw; height: 100vh;
+            display: flex; justify-content: center; align-items: center;
+            background: linear-gradient(135deg, #111, #222);
+            position: relative;
+        }
+
+        /* SLIDES */
+        .slide {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.5s ease;
+            text-align: center; padding: 20px; box-sizing: border-box;
+            z-index: 10;
+        }
+        .slide.active { opacity: 1; pointer-events: auto; }
+
+        /* TYPOGRAPHY */
+        h1 { font-size: 3rem; margin-bottom: 20px; font-weight: 800; letter-spacing: -1px; }
+        h2 { font-size: 5rem; margin: 10px 0; color: #e44232; text-shadow: 0 0 20px rgba(228, 66, 50, 0.4); }
+        p { font-size: 1.5rem; color: #aaa; max-width: 600px; line-height: 1.4; }
+        .highlight { color: #e44232; }
+
+        /* YEAR MENU */
+        #year-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); 
+            gap: 15px; width: 100%; max-width: 600px; margin-top: 30px;
+        }
+        .year-btn {
+            background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.1);
+            color: white; padding: 20px; border-radius: 12px; font-size: 1.5rem; font-weight: bold;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .year-btn:hover { background: #e44232; border-color: #e44232; transform: scale(1.05); }
+        .year-count { font-size: 0.8rem; font-weight: normal; opacity: 0.7; display: block; margin-top: 5px; }
+
+        /* CONTROLS */
+        .controls {
+            position: absolute; bottom: 30px; left: 0; width: 100%;
+            display: flex; justify-content: center; gap: 20px; z-index: 100;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        .controls.visible { opacity: 1; pointer-events: auto; }
+        
+        .nav-btn {
+            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+            color: white; padding: 10px 20px; border-radius: 30px; cursor: pointer;
+            backdrop-filter: blur(5px); transition: 0.2s;
+        }
+        .nav-btn:hover { background: rgba(255,255,255,0.2); }
+
+        /* LOADING */
+        .spinner {
+            width: 50px; height: 50px; border: 5px solid rgba(255,255,255,0.1);
+            border-top: 5px solid #e44232; border-radius: 50%;
+            animation: spin 1s linear infinite; margin-bottom: 20px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* PROGRESS BAR */
+        .progress-container {
+            position: absolute; top: 10px; left: 10px; right: 10px;
+            display: flex; gap: 5px; z-index: 100; opacity: 0; transition: opacity 0.3s;
+        }
+        .progress-container.visible { opacity: 1; }
+        .progress-pill { flex: 1; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; overflow: hidden; }
+        .progress-fill { height: 100%; width: 0%; background: #fff; transition: width 0.3s; }
+        .progress-pill.active .progress-fill { width: 100%; }
+
+        .chart-box { width: 100%; max-width: 600px; height: 300px; margin: 20px auto; }
+        
+        .summary-card {
+            background: #1a1a1a; padding: 40px; border-radius: 20px;
+            border: 2px solid #333; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            max-width: 500px; width: 100%;
+        }
+
+        /* TOAST NOTIFICATION */
+        #toast {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            background: #e44232; color: white; padding: 10px 20px; border-radius: 30px;
+            font-weight: bold; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 2000;
+        }
+        #toast.show { opacity: 1; }
+    </style>
+</head>
+<body>
+
+<div class="progress-container" id="progress-bar"></div>
+<div id="toast">Image copied to clipboard!</div>
+
+<div id="stage">
+    
+    <div class="slide active" id="slide-0">
+        <div class="spinner"></div>
+        <h1>Preparing Your History...</h1>
+        <p id="loading-text">Fetching tasks...</p>
+    </div>
+
+    <div class="slide" id="slide-1">
+        <h1>Select a Year</h1>
+        <p>Which chapter of your life do you want to revisit?</p>
+        <div id="year-grid"></div>
+    </div>
+
+    <div class="slide" id="slide-2">
+        <h1><span id="display-year" class="highlight">202X</span> Wrapped</h1>
+        <p>Let's see what you accomplished that year.</p>
+    </div>
+
+    <div class="slide" id="slide-3">
+        <p>In <span class="year-label"></span>, you completed</p>
+        <h2 id="total-tasks">0</h2>
+        <p>Tasks</p>
+    </div>
+
+    <div class="slide" id="slide-4">
+        <p>Your most productive day of <span class="year-label"></span> was</p>
+        <h1 id="best-day-date" class="highlight">...</h1>
+        <p><span id="best-day-count" style="font-weight:bold; color:white;">0</span> tasks completed.</p>
+    </div>
+
+    <div class="slide" id="slide-5">
+        <p>Your favorite day of the week was</p>
+        <h1 id="best-weekday" class="highlight">...</h1>
+        <div class="chart-box"><canvas id="week-chart"></canvas></div>
+    </div>
+
+    <div class="slide" id="slide-6">
+        <p>You were most active around</p>
+        <h1 id="best-hour" class="highlight">...</h1>
+        <div class="chart-box"><canvas id="hour-chart"></canvas></div>
+    </div>
+
+    <div class="slide" id="slide-7">
+        <div id="capture-card" class="summary-card">
+            <h3 style="color:#e44232; margin:0; text-transform:uppercase; letter-spacing:2px; margin-bottom: 5px;">
+                <i class="fa-solid fa-check-double"></i> Todoist Wrapped <span class="year-label"></span>
+            </h3>
+            
+            <div style="font-size: 4.5rem; font-weight: 800; margin: 10px 0; line-height:1;" id="final-total">0</div>
+            <div style="color:#888; margin-bottom: 25px; letter-spacing: 1px; font-size: 0.9rem;">TASKS COMPLETED</div>
+            
+            <div style="background:rgba(255,255,255,0.05); border-radius:12px; padding:20px; display:grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: left;">
+                <div><div style="color:#888; font-size:0.7rem; font-weight:700;">BEST DAY</div><div id="final-best-day" style="font-weight:bold; font-size:1.1rem;">-</div></div>
+                <div><div style="color:#888; font-size:0.7rem; font-weight:700;">PEAK HOUR</div><div id="final-peak-hour" style="font-weight:bold; font-size:1.1rem;">-</div></div>
+                <div><div style="color:#888; font-size:0.7rem; font-weight:700;">DAILY AVG</div><div id="final-avg" style="font-weight:bold; font-size:1.1rem;">-</div></div>
+                <div><div style="color:#888; font-size:0.7rem; font-weight:700;">POWER DAY</div><div id="final-weekday" style="font-weight:bold; font-size:1.1rem;">-</div></div>
+            </div>
+            
+            <div style="margin-top:20px; border-top:1px solid #333; padding-top:15px; font-size:0.7rem; color:#666; text-align:center;">
+                Global Wrappeds Generated: <span id="final-global-wrappeds" style="color:#e44232; font-weight:bold;">...</span>
+            </div>
+        </div>
+
+        <div style="margin-top: 30px; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+            <button class="nav-btn" onclick="window.shareSummary()" style="background: white; color: black; font-weight: bold;">
+                <i class="fa-solid fa-share-nodes"></i> Share Snapshot
+            </button>
+            <button class="nav-btn" onclick="window.restart()">
+                <i class="fa-solid fa-rotate-left"></i> Replay
+            </button>
+            <a href="index.html" class="nav-btn" style="text-decoration: none; border-color: #e44232; color: #e44232;">
+                <i class="fa-solid fa-house"></i> Dashboard
+            </a>
+        </div>
+    </div>
+
+</div>
+
+<div class="controls" id="controls">
+    <button class="nav-btn" onclick="window.prevSlide()">❮ Prev</button>
+    <button class="nav-btn" onclick="window.nextSlide()">Next ❯</button>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getDatabase, ref, update, increment, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCHb8y2tSGTB_UhZJlYdx2cLElpjKRNTSU",
+        authDomain: "todoist-stats-cd36f.firebaseapp.com",
+        databaseURL: "https://todoist-stats-cd36f-default-rtdb.firebaseio.com",
+        projectId: "todoist-stats-cd36f",
+        storageBucket: "todoist-stats-cd36f.firebasestorage.app",
+        messagingSenderId: "836832717528",
+        appId: "1:836832717528:web:e01ff49d10969d429e05ad"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const API_URL = 'https://api.todoist.com/sync/v9/completed/get_all';
+    
+    let STATE = {
+        allTasks: [], yearTasks: [], yearsMap: {}, currentSlide: 0, selectedYear: null, charts: {}
+    };
+    const SLIDES_COUNT = 8; 
+
+    // FIREBASE LISTENER
+    const statsRef = ref(db, 'global_stats');
+    onValue(statsRef, (snapshot) => {
+        const data = snapshot.val();
+        if(data && document.getElementById('final-global-wrappeds')) {
+            document.getElementById('final-global-wrappeds').innerText = (data.wrappeds_generated || 0).toLocaleString();
+        }
+    });
+
+    // INIT
+    window.onload = async () => {
+        setupProgressBar();
+        const token = localStorage.getItem('todoist_token');
+        if(!token) { alert("Please log in on dashboard."); window.location.href = "index.html"; return; }
+        await fetchAllData(token);
+    };
+
+    async function fetchAllData(token) {
+        let offset = 0; let hasMore = true;
+        try {
+            while(hasMore) {
+                const res = await fetch(`${API_URL}?limit=200&offset=${offset}`, { headers: { 'Authorization': `Bearer ${token}` } });
+                if(!res.ok) throw new Error("API Error");
+                const data = await res.json();
+                const items = data.items || [];
+                if(items.length > 0) {
+                    STATE.allTasks = STATE.allTasks.concat(items);
+                    offset += 200;
+                    document.getElementById('loading-text').innerText = `Found ${STATE.allTasks.length} tasks...`;
+                } else { hasMore = false; }
+            }
+            processYears();
+            window.goToSlide(1); 
+        } catch (e) { alert("Error: " + e.message); window.location.href = "index.html"; }
+    }
+
+    function processYears() {
+        STATE.yearsMap = {};
+        STATE.allTasks.forEach(t => {
+            const y = t.completed_at.substring(0, 4);
+            STATE.yearsMap[y] = (STATE.yearsMap[y] || 0) + 1;
+        });
+        const grid = document.getElementById('year-grid');
+        grid.innerHTML = '';
+        Object.keys(STATE.yearsMap).sort().reverse().forEach(year => {
+            const count = STATE.yearsMap[year];
+            const btn = document.createElement('button');
+            btn.className = 'year-btn';
+            btn.innerHTML = `${year} <span class="year-count">${count} Tasks</span>`;
+            btn.onclick = () => window.startYear(year);
+            grid.appendChild(btn);
+        });
+    }
+
+    window.startYear = function(year) {
+        STATE.selectedYear = year;
+        STATE.yearTasks = STATE.allTasks.filter(t => t.completed_at.startsWith(year));
+        
+        update(ref(db, 'global_stats'), { wrappeds_generated: increment(1) }).catch(console.error);
+
+        document.getElementById('display-year').innerText = year;
+        document.querySelectorAll('.year-label').forEach(el => el.innerText = year);
+        calculateStats();
+        
+        document.getElementById('controls').classList.add('visible');
+        document.getElementById('progress-bar').classList.add('visible');
+        window.goToSlide(2);
+    }
+
+    function calculateStats() {
+        const tasks = STATE.yearTasks;
+        if(tasks.length === 0) return;
+        const total = tasks.length;
+        document.getElementById('total-tasks').innerText = total.toLocaleString();
+        document.getElementById('final-total').innerText = total.toLocaleString();
+
+        const dayMap = {};
+        const weekdayMap = [0,0,0,0,0,0,0];
+        const hourMap = new Array(24).fill(0);
+        tasks.forEach(t => {
+            const d = new Date(t.completed_at);
+            dayMap[t.completed_at.split('T')[0]] = (dayMap[t.completed_at.split('T')[0]] || 0) + 1;
+            weekdayMap[d.getDay()]++;
+            hourMap[d.getHours()]++;
+        });
+
+        let maxVal = 0, bestDate = "";
+        for(const [d,c] of Object.entries(dayMap)) { if(c > maxVal) { maxVal = c; bestDate = d; } }
+        
+        const prettyDate = new Date(bestDate + "T12:00:00").toLocaleDateString(undefined, {month:'long', day:'numeric'});
+        document.getElementById('best-day-date').innerText = prettyDate;
+        document.getElementById('best-day-count').innerText = maxVal;
+        document.getElementById('final-best-day').innerText = prettyDate;
+
+        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const bestWkIdx = weekdayMap.indexOf(Math.max(...weekdayMap));
+        document.getElementById('best-weekday').innerText = days[bestWkIdx];
+        document.getElementById('final-weekday').innerText = days[bestWkIdx];
+
+        const bestHr = hourMap.indexOf(Math.max(...hourMap));
+        const ampm = bestHr >= 12 ? 'PM' : 'AM';
+        const hrDisp = bestHr % 12 || 12;
+        document.getElementById('best-hour').innerText = `${hrDisp} ${ampm}`;
+        document.getElementById('final-peak-hour').innerText = `${hrDisp} ${ampm}`;
+
+        const uniqueDays = Object.keys(dayMap).length || 1;
+        document.getElementById('final-avg').innerText = (total / uniqueDays).toFixed(1);
+
+        renderCharts(weekdayMap, hourMap);
+    }
+
+    // --- SHARE FUNCTIONALITY ---
+    window.shareSummary = function() {
+        const card = document.getElementById('capture-card');
+        
+        // Force opaque background for the snapshot
+        const originalBg = card.style.background;
+        card.style.background = "#1a1a1a"; 
+
+        html2canvas(card, { scale: 2, backgroundColor: "#1a1a1a" }).then(canvas => {
+            card.style.background = originalBg; // Reset
+            
+            canvas.toBlob(blob => {
+                try {
+                    const item = new ClipboardItem({ "image/png": blob });
+                    navigator.clipboard.write([item]).then(() => {
+                        showToast("Image copied to clipboard!");
+                    }).catch(err => {
+                        // Fallback to download if clipboard fails (e.g. non-HTTPS or unsupported)
+                        downloadImage(canvas);
+                        showToast("Clipboard failed. Downloading image...");
+                    });
+                } catch (e) {
+                    downloadImage(canvas);
+                    showToast("Downloading image...");
+                }
+            });
+        });
+    }
+
+    function downloadImage(canvas) {
+        const link = document.createElement('a');
+        link.download = `todoist-wrapped-${STATE.selectedYear}.png`;
+        link.href = canvas.toDataURL();
+        link.click();
+    }
+
+    function showToast(msg) {
+        const toast = document.getElementById('toast');
+        toast.innerText = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    // --- NAVIGATION & VISUALS ---
+    window.goToSlide = function(idx) {
+        document.querySelector(`.slide.active`).classList.remove('active');
+        STATE.currentSlide = idx;
+        document.getElementById(`slide-${idx}`).classList.add('active');
+        updateProgressBar();
+        if(idx === 7) launchConfetti();
+    }
+    window.nextSlide = function() { if(STATE.currentSlide < SLIDES_COUNT - 1) window.goToSlide(STATE.currentSlide + 1); }
+    window.prevSlide = function() { if(STATE.currentSlide > 1) window.goToSlide(STATE.currentSlide - 1); }
+    window.restart = function() {
+        document.getElementById('controls').classList.remove('visible');
+        document.getElementById('progress-bar').classList.remove('visible');
+        window.goToSlide(1); 
+    }
+
+    function setupProgressBar() {
+        const container = document.getElementById('progress-bar');
+        for(let i=2; i<SLIDES_COUNT; i++) {
+            const pill = document.createElement('div');
+            pill.className = 'progress-pill';
+            pill.id = `pill-${i}`;
+            pill.innerHTML = `<div class="progress-fill"></div>`;
+            container.appendChild(pill);
+        }
+    }
+    function updateProgressBar() {
+        for(let i=2; i<SLIDES_COUNT; i++) {
+            const pill = document.getElementById(`pill-${i}`);
+            if(i <= STATE.currentSlide) pill.classList.add('active');
+            else pill.classList.remove('active');
+        }
+    }
+    function launchConfetti() { confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#e44232', '#fff'] }); }
+
+    function renderCharts(wData, hData) {
+        if(STATE.charts['week']) STATE.charts['week'].destroy();
+        STATE.charts['week'] = new Chart(document.getElementById('week-chart'), {
+            type: 'bar', data: { labels: ['S','M','T','W','T','F','S'], datasets: [{ data: wData, backgroundColor: '#fff', borderRadius: 4 }] },
+            options: { plugins: { legend: false }, scales: { x: { ticks: {color:'white'} }, y: { display: false } }, maintainAspectRatio: false }
+        });
+        if(STATE.charts['hour']) STATE.charts['hour'].destroy();
+        const timeLabels = [...Array(24).keys()].map(h => {
+            const a = h >= 12 ? 'PM' : 'AM';
+            const v = h % 12 || 12;
+            return (h % 6 === 0) ? `${v}${a}` : '';
+        });
+        STATE.charts['hour'] = new Chart(document.getElementById('hour-chart'), {
+            type: 'line', data: { labels: timeLabels, datasets: [{ data: hData, borderColor: '#e44232', borderWidth: 3, pointRadius: 0, tension: 0.4 }] },
+            options: { plugins: { legend: false }, scales: { x: { ticks: {color:'rgba(255,255,255,0.7)', maxTicksLimit:8} }, y: { display: false } }, maintainAspectRatio: false }
+        });
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if(STATE.currentSlide > 1) {
+            if(e.key === 'ArrowRight') window.nextSlide();
+            if(e.key === 'ArrowLeft') window.prevSlide();
+        }
+    });
+</script>
+</body>
+</html>

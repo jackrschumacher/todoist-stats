@@ -47,7 +47,7 @@
         .gap-10 { gap: 10px; }
         
         /* --- COMPONENTS --- */
-        .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; transition: 0.2s; display: inline-flex; align-items: center; gap: 8px; }
+        .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; transition: 0.2s; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }
         .btn-sm { padding: 4px 10px; font-size: 12px; }
         .btn-primary { background: var(--primary); color: white; }
         .btn-primary:hover { background: var(--primary-hover); }
@@ -117,12 +117,12 @@
             position: fixed; bottom: 0; left: 0; width: 100%;
             background: var(--card-bg); border-top: 1px solid var(--border);
             padding: 10px 20px; font-size: 12px; color: var(--text-muted);
-            display: flex; justify-content: center; gap: 30px;
+            display: flex; justify-content: center; gap: 20px;
             box-shadow: 0 -2px 10px rgba(0,0,0,0.05); z-index: 100;
             cursor: pointer; transition: background 0.2s;
         }
         .community-bar:hover { background: var(--border); }
-        .comm-stat strong { color: var(--primary); font-size: 14px; }
+        .comm-stat strong { color: var(--primary); font-size: 14px; margin-left: 4px; }
 
         /* MODAL */
         .modal-overlay {
@@ -143,6 +143,7 @@
 <div class="community-bar" onclick="window.openCommunityModal()" title="Click to view global trends">
     <div class="comm-stat">Global Tasks: <strong id="global-tasks">...</strong></div>
     <div class="comm-stat">Exports: <strong id="global-exports">...</strong></div>
+    <div class="comm-stat">Wrappeds Generated: <strong id="global-wrappeds">...</strong></div>
     <div style="font-size:10px; align-self:center; opacity:0.7;">(Click for stats)</div>
 </div>
 
@@ -201,6 +202,10 @@
         </div>
         
         <div class="flex gap-10">
+            <a href="wrapped.html" class="btn btn-primary" style="font-size: 12px;">
+                <i class="fa-solid fa-gift"></i> Play Wrapped
+            </a>
+            
             <button onclick="window.toggleTheme()" class="btn btn-outline" title="Dark Mode"><i id="theme-icon" class="fa-solid fa-moon"></i></button>
             <button onclick="window.resyncData()" class="btn btn-outline" title="Resync"><i class="fa-solid fa-rotate"></i></button>
             <button onclick="window.logout()" class="btn btn-outline" title="Logout"><i class="fa-solid fa-sign-out-alt"></i></button>
@@ -324,6 +329,7 @@
         if (!data) return;
         document.getElementById('global-tasks').innerText = (data.tasks_processed || 0).toLocaleString();
         document.getElementById('global-exports').innerText = (data.exports || 0).toLocaleString();
+        document.getElementById('global-wrappeds').innerText = (data.wrappeds_generated || 0).toLocaleString(); // NEW STAT
         document.getElementById('comm-total').innerText = (data.tasks_processed || 0).toLocaleString();
 
         const totalDays = data.total_days_logged || 1;
@@ -530,7 +536,6 @@
             document.getElementById('filter-badge').innerText = "All Time History";
             document.getElementById('btn-reset').classList.add('hidden');
         } else if (type === 'MONTH') {
-            // value = YYYY-MM
             STATE.filteredTasks = STATE.allTasks.filter(t => t.completed_at.startsWith(value));
             const [y, m] = value.split('-');
             const dateObj = new Date(y, m-1);
@@ -555,7 +560,6 @@
              const dates = new Set(tasks.map(t=>t.completed_at.split('T')[0]));
              divisor = dates.size || 1;
         } else if (STATE.filterType === 'MONTH') {
-             // For a specific month, divisor is unique active days in that month
              const dates = new Set(tasks.map(t=>t.completed_at.split('T')[0]));
              divisor = dates.size || 1;
         }
@@ -592,11 +596,9 @@
                 key = t.completed_at.substring(0, 7); 
                 document.getElementById('chart-title-timeline').innerText = "History by Month";
             } else if (STATE.filterType === 'MONTH') {
-                // For Month view, show days
                 key = t.completed_at.substring(0, 10);
                 document.getElementById('chart-title-timeline').innerText = "Daily Breakdown";
             } else {
-                // For Day view, show hours
                 key = d.getHours() + ":00";
                 document.getElementById('chart-title-timeline').innerText = "Hourly Breakdown";
             }
