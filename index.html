@@ -6,7 +6,9 @@
     <title>Todoist Analytics Dashboard</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect x='8' y='8' width='112' height='112' rx='28' fill='%23e44232'/%3E%3Cpath d='M36 68 L58 90 L94 38' stroke='white' stroke-width='14' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='94' cy='38' r='9' fill='white'/%3E%3C/svg%3E">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect x='8' y='8' width='112' height='112' rx='28' fill='%23e44232'/%3E%3Cpath d='M36 68 L58 90 L94 38' stroke='white' stroke-width='14' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='94' cy='38' r='9' fill='white'/%3E%3C/svg%3E">
     
     <style>
         /* --- THEME VARIABLES --- */
@@ -56,41 +58,42 @@
         
         .card { background: var(--card-bg); border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; border: 1px solid var(--border); }
 
-        /* --- CALENDAR --- */
-        .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        
-        /* Dropdown Styling */
-        .month-select {
-            appearance: none;
-            background: var(--card-bg);
+        /* --- SCROLLABLE HEATMAP --- */
+        .heatmap-container {
+            max-height: 400px; 
+            overflow-y: auto;
             border: 1px solid var(--border);
-            color: var(--text-main);
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: bold;
-            cursor: pointer;
-            text-align: center;
-            min-width: 140px;
+            border-radius: 8px;
+            padding: 10px;
+            background: var(--card-bg);
+            scrollbar-width: thin;
+            scrollbar-color: var(--text-muted) transparent;
         }
-        .month-select:hover { border-color: var(--text-muted); }
-        .month-select:focus { outline: none; border-color: var(--primary); }
+        .heatmap-container::-webkit-scrollbar { width: 6px; }
+        .heatmap-container::-webkit-scrollbar-thumb { background-color: var(--text-muted); border-radius: 3px; }
+
+        .heatmap-month-wrapper { margin-bottom: 15px; }
+        
+        /* CLICKABLE MONTH LABELS */
+        .heatmap-month-label { 
+            font-size: 13px; font-weight: bold; margin-bottom: 5px; color: var(--text-muted); 
+            cursor: pointer; display: inline-block; transition: 0.2s;
+            padding: 2px 8px; border-radius: 4px;
+        }
+        .heatmap-month-label:hover { color: var(--primary); background: var(--highlight); }
+        .heatmap-month-label.selected { color: white; background: var(--primary); }
 
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
-        .cal-day-name { text-align: center; font-size: 11px; color: var(--text-muted); font-weight: bold; padding-bottom: 5px; }
-        .cal-day { aspect-ratio: 1; border-radius: 6px; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; border: 1px solid transparent; position: relative; transition: 0.2s; }
-        .cal-day:hover { border-color: var(--text-muted); transform: scale(1.05); z-index: 2; }
-        .cal-day.selected { border: 2px solid var(--selected-border); transform: scale(1.1); z-index: 3; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+        .cal-day { aspect-ratio: 1; border-radius: 4px; display: flex; justify-content: center; align-items: center; cursor: pointer; border: 1px solid transparent; position: relative; font-size: 10px; font-weight: bold; color: var(--text-main); }
+        .cal-day:hover { border-color: var(--text-muted); transform: scale(1.1); z-index: 2; }
+        .cal-day.selected { border: 2px solid var(--selected-border); transform: scale(1.1); z-index: 3; }
         .cal-day.empty { background: transparent; cursor: default; pointer-events: none; }
-        .cal-number { font-size: 12px; font-weight: bold; }
-        .cal-count { font-size: 9px; opacity: 0.8; }
-
-        /* Heatmap Colors */
-        .heat-0 { background: var(--card-bg); border: 1px solid var(--border); }
-        .heat-1 { background: rgba(228, 66, 50, 0.1); }
-        .heat-2 { background: rgba(228, 66, 50, 0.3); }
-        .heat-3 { background: rgba(228, 66, 50, 0.5); color: white; }
-        .heat-4 { background: rgba(228, 66, 50, 0.7); color: white; }
+        
+        .heat-0 { background: var(--bg-color); color: var(--text-muted); opacity: 0.5; }
+        .heat-1 { background: rgba(228, 66, 50, 0.15); }
+        .heat-2 { background: rgba(228, 66, 50, 0.35); }
+        .heat-3 { background: rgba(228, 66, 50, 0.55); color: white; }
+        .heat-4 { background: rgba(228, 66, 50, 0.75); color: white; }
         .heat-5 { background: #e44232; color: white; }
 
         /* --- LAYOUT --- */
@@ -104,13 +107,12 @@
         
         .chart-container { position: relative; height: 250px; width: 100%; }
         
-        /* LOGIN & PROGRESS */
         .login-box { max-width: 500px; margin: 80px auto; text-align: center; }
         input[type="password"] { width: 100%; padding: 12px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-main); border-radius: 6px; margin-bottom: 15px; box-sizing: border-box; }
         .progress-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 10px; }
         .progress-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.3s; }
 
-        /* FOOTER STATS */
+        /* FOOTER */
         .community-bar {
             position: fixed; bottom: 0; left: 0; width: 100%;
             background: var(--card-bg); border-top: 1px solid var(--border);
@@ -134,14 +136,13 @@
             box-shadow: 0 10px 25px rgba(0,0,0,0.2);
             position: relative;
         }
-
     </style>
 </head>
 <body>
 
 <div class="community-bar" onclick="window.openCommunityModal()" title="Click to view global trends">
-    <div class="comm-stat">Global Tasks Processed: <strong id="global-tasks">Loading...</strong></div>
-    <div class="comm-stat">Community Exports: <strong id="global-exports">Loading...</strong></div>
+    <div class="comm-stat">Global Tasks: <strong id="global-tasks">...</strong></div>
+    <div class="comm-stat">Exports: <strong id="global-exports">...</strong></div>
     <div style="font-size:10px; align-self:center; opacity:0.7;">(Click for stats)</div>
 </div>
 
@@ -151,34 +152,23 @@
             <h2 style="margin:0; color: var(--primary);"> Global Community Stats</h2>
             <button onclick="window.closeCommunityModal()" class="btn btn-outline btn-sm"><i class="fa-solid fa-times"></i></button>
         </div>
-
         <div class="stat-tiles" style="grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px;">
             <div class="stat-tile" style="border-color: var(--border);">
-                <div class="stat-num" id="comm-total">Loading...</div>
+                <div class="stat-num" id="comm-total">...</div>
                 <div class="stat-lbl">Global Tasks</div>
             </div>
             <div class="stat-tile" style="border-color: var(--border);">
-                <div class="stat-num" id="comm-avg">Loading...</div>
+                <div class="stat-num" id="comm-avg">...</div>
                 <div class="stat-lbl">Community Daily Avg</div>
             </div>
         </div>
-
         <div class="card" style="background: var(--bg-color); border: 1px solid var(--border); padding: 20px;">
             <h3 style="margin-top:0; font-size: 14px; color: var(--text-muted); text-transform:uppercase; margin-bottom: 15px;">Global Peak Productivity</h3>
             <div class="flex between" style="margin-bottom: 10px; font-size: 16px;">
-                <span>Best Time:</span>
-                <strong id="comm-best-time" style="font-size: 20px;">-</strong>
+                <span>Best Time:</span><strong id="comm-best-time" style="font-size: 20px;">-</strong>
             </div>
             <div class="flex between" style="font-size: 16px;">
-                <span>Best Weekday:</span>
-                <strong id="comm-best-day" style="font-size: 20px;">-</strong>
-            </div>
-        </div>
-
-        <div style="margin-top: 25px;">
-             <h3 style="margin:0 0 10px 0; font-size:14px; color:var(--text-muted);">Trend Over Time</h3>
-             <div class="chart-container" style="height: 200px;">
-                <canvas id="chart-community"></canvas>
+                <span>Best Weekday:</span><strong id="comm-best-day" style="font-size: 20px;">-</strong>
             </div>
         </div>
     </div>
@@ -188,17 +178,12 @@
     <div class="card">
         <h1><i class="fa-solid fa-layer-group"></i> Todoist Analytics</h1>
         <p style="color: var(--text-muted);">Visualize your productivity history.</p>
-        
         <input type="password" id="api-token" placeholder="Paste API Token (Settings > Integrations)">
-        
-        <button onclick="window.initFetch()" class="btn btn-primary" style="width: 100%; justify-content: center;">
-            Load Data
-        </button>
+        <button onclick="window.initFetch()" class="btn btn-primary" style="width: 100%; justify-content: center;">Load Data</button>
 
         <div id="loading-ui" class="hidden" style="margin-top: 20px;">
             <div class="flex between" style="font-size: 12px;">
-                <span>Fetching history...</span>
-                <span id="load-count">0</span>
+                <span>Fetching history...</span><span id="load-count">0</span>
             </div>
             <div class="progress-track"><div id="progress-bar" class="progress-fill"></div></div>
             <div id="error-msg" style="color: red; font-size: 12px; margin-top: 10px;"></div>
@@ -211,12 +196,8 @@
     <div class="flex between" style="margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid var(--border);">
         <div class="flex gap-10">
             <h2 style="margin:0; color: var(--primary);">Analytics</h2>
-            <div id="filter-badge" style="background: var(--text-main); color: var(--bg-color); padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold;">
-                All Time
-            </div>
-            <button id="btn-reset" onclick="window.resetFilter()" class="hidden btn btn-outline btn-sm">
-                <i class="fa-solid fa-times"></i> Clear
-            </button>
+            <div id="filter-badge" style="background: var(--text-main); color: var(--bg-color); padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold;">All Time</div>
+            <button id="btn-reset" onclick="window.resetFilter()" class="hidden btn btn-outline btn-sm"><i class="fa-solid fa-times"></i> Clear</button>
         </div>
         
         <div class="flex gap-10">
@@ -230,22 +211,24 @@
         
         <div>
             <div class="card">
-                <div class="calendar-header">
-                    <button class="btn btn-outline btn-sm" onclick="window.changeCalMonth(-1)"><i class="fa-solid fa-chevron-left"></i></button>
-                    <select id="month-dropdown" class="month-select" onchange="window.handleMonthSelect(this.value)">
-                        </select>
-                    <button class="btn btn-outline btn-sm" onclick="window.changeCalMonth(1)"><i class="fa-solid fa-chevron-right"></i></button>
+                <div class="flex between" style="margin-bottom: 10px;">
+                    <h3 style="margin:0; font-size: 16px;">History Heatmap</h3>
+                    <button class="btn btn-outline btn-sm" onclick="window.exportHeatmap()" title="Export Heatmap">
+                        <i class="fa-solid fa-camera"></i> Export
+                    </button>
+                </div>
+                
+                <div style="margin-bottom: 5px; display: grid; grid-template-columns: repeat(7, 1fr); font-size: 10px; color: var(--text-muted); text-align: center;">
+                    <div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div>
                 </div>
 
-                <button onclick="window.filterByCurrentMonth()" class="btn btn-ghost" style="width: 100%; justify-content: center; margin-bottom: 15px; font-size: 12px;">
-                    <i class="fa-regular fa-calendar-check"></i> Analyze this Month
-                </button>
-
-                <div class="calendar-grid" style="margin-bottom: 5px;">
-                    <div class="cal-day-name">S</div><div class="cal-day-name">M</div><div class="cal-day-name">T</div>
-                    <div class="cal-day-name">W</div><div class="cal-day-name">T</div><div class="cal-day-name">F</div><div class="cal-day-name">S</div>
+                <div id="heatmap-scroll-area" class="heatmap-container">
+                    <div id="full-heatmap-content">
+                        </div>
                 </div>
-                <div id="calendar-body" class="calendar-grid"></div>
+                <div style="font-size:11px; color:var(--text-muted); text-align:center; margin-top:8px;">
+                    Click a Month or Day to filter charts.
+                </div>
             </div>
 
             <div class="stat-tiles">
@@ -274,7 +257,7 @@
             <div class="card">
                 <div class="flex between">
                     <h3 id="chart-title-timeline" style="margin:0; font-size: 16px;">Activity Timeline</h3>
-                    <button onclick="window.exportChart('chart-timeline')" class="btn btn-outline btn-sm" title="Export Image"><i class="fa-solid fa-download"></i></button>
+                    <button onclick="window.exportChart('chart-timeline')" class="btn btn-outline btn-sm"><i class="fa-solid fa-download"></i></button>
                 </div>
                 <div class="chart-container">
                     <canvas id="chart-timeline"></canvas>
@@ -327,7 +310,6 @@
         allTasks: [],     
         filteredTasks: [], 
         taskMap: {},
-        calViewDate: new Date(),
         filterType: 'ALL',
         filterValue: null,
         charts: {},
@@ -335,59 +317,39 @@
         maxDate: new Date()
     };
 
-    // --- 1. FIREBASE LISTENER (READING STATS) ---
+    // --- 1. FIREBASE ---
     const statsRef = ref(db, 'global_stats');
-    
     onValue(statsRef, (snapshot) => {
         const data = snapshot.val();
         if (!data) return;
-
-        // Footer Stats
         document.getElementById('global-tasks').innerText = (data.tasks_processed || 0).toLocaleString();
         document.getElementById('global-exports').innerText = (data.exports || 0).toLocaleString();
-
-        // Modal Stats
-        // 1. Total Tasks
         document.getElementById('comm-total').innerText = (data.tasks_processed || 0).toLocaleString();
 
-        // 2. Daily Average
         const totalDays = data.total_days_logged || 1;
         const avg = (data.tasks_processed / totalDays).toFixed(1);
         document.getElementById('comm-avg').innerText = avg;
 
-        // 3. Best Time
         if (data.hours) {
-            let maxVal = 0; 
-            let bestHour = 0;
-            for(let i=0; i<24; i++) {
-                const count = data.hours[i] || 0;
-                if(count > maxVal) { maxVal = count; bestHour = i; }
-            }
+            let maxVal = 0, bestHour = 0;
+            for(let i=0; i<24; i++) { if((data.hours[i]||0) > maxVal) { maxVal = data.hours[i]; bestHour = i; } }
             document.getElementById('comm-best-time').innerText = `${bestHour}:00`;
         }
-
-        // 4. Best Weekday
         if (data.weekdays) {
-            let maxDayVal = 0;
-            let bestDayIndex = 0;
+            let maxDayVal = 0, bestDayIndex = 0;
             const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-            for(let i=0; i<7; i++) {
-                const count = data.weekdays[i] || 0;
-                if(count > maxDayVal) { maxDayVal = count; bestDayIndex = i; }
-            }
+            for(let i=0; i<7; i++) { if((data.weekdays[i]||0) > maxDayVal) { maxDayVal = data.weekdays[i]; bestDayIndex = i; } }
             document.getElementById('comm-best-day').innerText = days[bestDayIndex];
         }
     });
 
-    // --- 2. MAIN APP FUNCTIONS ---
+    // --- 2. INIT ---
     window.onload = () => {
         if(localStorage.getItem('theme') === 'dark') window.applyTheme('dark');
         const savedToken = localStorage.getItem('todoist_token');
         if (savedToken) {
             document.getElementById('api-token').value = savedToken;
             window.initFetch();
-        } else {
-            window.populateMonthDropdown();
         }
     };
 
@@ -403,7 +365,7 @@
         if(STATE.filteredTasks.length > 0) renderCharts();
     }
 
-    // --- 3. FETCH & WRITE STATS LOGIC ---
+    // --- 3. FETCH ---
     window.initFetch = async function(isResync = false) {
         const token = document.getElementById('api-token').value.trim();
         if (!token) return alert("Please enter API Token");
@@ -439,41 +401,30 @@
             localStorage.setItem('todoist_token', token);
             processData();
 
-            // --- AGGREGATE STATS FOR FIREBASE ---
+            // Firebase Logic
             const localHours = new Array(24).fill(0);
             const localDays = new Array(7).fill(0);
-            const localMonths = {};
             const uniqueDates = new Set();
-
             STATE.allTasks.forEach(t => {
                 const d = new Date(t.completed_at);
                 localHours[d.getHours()]++;
                 localDays[d.getDay()]++;
-                const monthKey = t.completed_at.substring(0, 7);
-                localMonths[monthKey] = (localMonths[monthKey] || 0) + 1;
                 uniqueDates.add(t.completed_at.substring(0, 10));
             });
-
             const updates = {};
             updates['global_stats/tasks_processed'] = increment(STATE.allTasks.length);
             updates['global_stats/total_days_logged'] = increment(uniqueDates.size);
-
-            localHours.forEach((count, hour) => {
-                if(count > 0) updates[`global_stats/hours/${hour}`] = increment(count);
-            });
-
-            localDays.forEach((count, day) => {
-                if(count > 0) updates[`global_stats/weekdays/${day}`] = increment(count);
-            });
-
-            for (const [month, count] of Object.entries(localMonths)) {
-                updates[`community_monthly/${month}`] = increment(count);
-            }
-
+            localHours.forEach((count, hour) => { if(count > 0) updates[`global_stats/hours/${hour}`] = increment(count); });
+            localDays.forEach((count, day) => { if(count > 0) updates[`global_stats/weekdays/${day}`] = increment(count); });
             update(ref(db), updates).catch(console.error);
 
             document.getElementById('view-login').classList.add('hidden');
             document.getElementById('view-dashboard').classList.remove('hidden');
+
+            setTimeout(() => {
+                const container = document.getElementById('heatmap-scroll-area');
+                container.scrollTop = container.scrollHeight;
+            }, 100);
 
         } catch (e) {
             document.getElementById('error-msg').innerText = e.message;
@@ -482,147 +433,104 @@
         }
     }
 
-    // --- DROPDOWN & CALENDAR ---
-    window.populateMonthDropdown = function() {
-        if(STATE.allTasks.length > 0) {
-            const dates = STATE.allTasks.map(t => new Date(t.completed_at));
-            STATE.minDate = new Date(Math.min(...dates));
-            STATE.maxDate = new Date(Math.max(...dates));
-        } else {
-            STATE.maxDate = new Date();
-            STATE.minDate = new Date();
-            STATE.minDate.setFullYear(STATE.maxDate.getFullYear() - 2);
-        }
-        const select = document.getElementById('month-dropdown');
-        select.innerHTML = '';
-        let current = new Date(STATE.minDate);
-        current.setDate(1);
-        const end = new Date(STATE.maxDate);
-        end.setDate(1);
-        const futureCap = new Date();
-        futureCap.setMonth(futureCap.getMonth() + 1);
-        while (current <= futureCap) {
-            const y = current.getFullYear();
-            const m = current.getMonth();
-            const val = `${y}-${String(m).padStart(2, '0')}`;
-            const label = current.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-            const opt = document.createElement('option');
-            opt.value = val; 
-            opt.innerText = label;
-            select.appendChild(opt);
-            current.setMonth(current.getMonth() + 1);
-        }
-        window.syncDropdown();
-    }
+    // --- RENDER HEATMAP ---
+    function renderFullHeatmap() {
+        const container = document.getElementById('full-heatmap-content');
+        container.innerHTML = '';
 
-    window.syncDropdown = function() {
-        const y = STATE.calViewDate.getFullYear();
-        const m = STATE.calViewDate.getMonth();
-        const val = `${y}-${String(m).padStart(2, '0')}`;
-        const select = document.getElementById('month-dropdown');
-        select.value = val;
-    }
+        if(STATE.allTasks.length === 0) return;
 
-    window.handleMonthSelect = function(val) {
-        const [y, m] = val.split('-');
-        STATE.calViewDate.setFullYear(parseInt(y));
-        STATE.calViewDate.setMonth(parseInt(m));
-        renderCalendar();
-    }
+        const dates = STATE.allTasks.map(t => new Date(t.completed_at));
+        const minDate = new Date(Math.min(...dates));
+        const maxDate = new Date();
 
-    window.changeCalMonth = function(delta) {
-        STATE.calViewDate.setMonth(STATE.calViewDate.getMonth() + delta);
-        window.syncDropdown();
-        renderCalendar();
-    }
+        let currentMonth = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+        const endMonth = new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
 
-    // --- COMMUNITY MODAL ---
-    window.openCommunityModal = function() {
-        document.getElementById('community-modal').classList.remove('hidden');
-        get(child(ref(db), 'community_monthly')).then((snapshot) => {
-            if (snapshot.exists()) {
-                window.renderCommunityChart(snapshot.val());
+        while(currentMonth <= endMonth) {
+            const year = currentMonth.getFullYear();
+            const month = currentMonth.getMonth();
+            const monthLabel = currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            const monthKey = `${year}-${String(month+1).padStart(2,'0')}`;
+
+            const monthWrapper = document.createElement('div');
+            monthWrapper.className = 'heatmap-month-wrapper';
+
+            // CLICKABLE MONTH LABEL
+            const labelEl = document.createElement('div');
+            labelEl.className = 'heatmap-month-label';
+            if(STATE.filterType === 'MONTH' && STATE.filterValue === monthKey) labelEl.classList.add('selected');
+            labelEl.innerText = monthLabel;
+            labelEl.onclick = () => window.filterByMonth(monthKey);
+            monthWrapper.appendChild(labelEl);
+
+            const grid = document.createElement('div');
+            grid.className = 'calendar-grid';
+
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const startDayIndex = new Date(year, month, 1).getDay();
+
+            for(let i=0; i<startDayIndex; i++) {
+                const empty = document.createElement('div');
+                empty.className = 'cal-day empty';
+                grid.appendChild(empty);
             }
-        });
-    }
 
-    window.closeCommunityModal = function() {
-        document.getElementById('community-modal').classList.add('hidden');
-    }
-
-    window.renderCommunityChart = function(data) {
-        const ctx = document.getElementById('chart-community').getContext('2d');
-        const sortedKeys = Object.keys(data).sort();
-        const values = sortedKeys.map(k => data[k]);
-        const isDark = document.body.getAttribute('data-theme') === 'dark';
-        const textColor = isDark ? '#bdc3c7' : '#2c3e50';
-
-        if(STATE.charts['community']) STATE.charts['community'].destroy();
-
-        STATE.charts['community'] = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: sortedKeys,
-                datasets: [{
-                    label: 'Global Tasks Processed',
-                    data: values,
-                    borderColor: '#e44232',
-                    backgroundColor: 'rgba(228, 66, 50, 0.1)',
-                    fill: true,
-                    tension: 0.3
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    x: { ticks: { color: textColor } },
-                    y: { ticks: { color: textColor }, beginAtZero: true }
-                }
+            for(let d=1; d<=daysInMonth; d++) {
+                const dateStr = `${year}-${String(month+1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const count = STATE.taskMap[dateStr] || 0;
+                
+                const dayEl = document.createElement('div');
+                let heat = 0;
+                if(count>0) heat = count<=2?1 : count<=5?2 : count<=8?3 : count<=12?4 : 5;
+                
+                dayEl.className = `cal-day heat-${heat}`;
+                if(STATE.filterType === 'DAY' && STATE.filterValue === dateStr) dayEl.classList.add('selected');
+                
+                dayEl.onclick = () => window.filterByDay(dateStr);
+                dayEl.title = `${dateStr}: ${count} tasks`;
+                dayEl.innerText = d;
+                
+                grid.appendChild(dayEl);
             }
-        });
+            
+            monthWrapper.appendChild(grid);
+            container.appendChild(monthWrapper);
+            currentMonth.setMonth(currentMonth.getMonth() + 1);
+        }
     }
 
-    // --- STANDARD APP LOGIC ---
-    window.exportChart = function(chartId) {
-        const chart = STATE.charts[chartId];
-        if(!chart) return;
-        const link = document.createElement('a');
-        link.download = `todoist-${chartId}-${Date.now()}.png`;
-        link.href = chart.toBase64Image();
-        link.click();
-        update(statsRef, { exports: increment(1) }).catch(console.error);
-    }
-
+    // --- FILTER LOGIC ---
     function processData() {
         STATE.taskMap = {};
         STATE.allTasks.forEach(t => {
             const date = t.completed_at.split('T')[0];
             STATE.taskMap[date] = (STATE.taskMap[date] || 0) + 1;
         });
-        window.populateMonthDropdown();
+        renderFullHeatmap();
         window.resetFilter();
     }
 
     window.resetFilter = function() { window.setFilter('ALL', null); }
-    window.filterByCurrentMonth = function() {
-        const y = STATE.calViewDate.getFullYear();
-        const m = String(STATE.calViewDate.getMonth() + 1).padStart(2, '0');
-        window.setFilter('MONTH', `${y}-${m}`);
+    window.filterByMonth = function(monthStr) {
+        if(STATE.filterType === 'MONTH' && STATE.filterValue === monthStr) window.resetFilter();
+        else window.setFilter('MONTH', monthStr);
     }
     window.filterByDay = function(dateStr) {
-        if(STATE.filterType === 'DAY' && STATE.filterValue === dateStr) window.filterByCurrentMonth();
+        if(STATE.filterType === 'DAY' && STATE.filterValue === dateStr) window.resetFilter();
         else window.setFilter('DAY', dateStr);
     }
 
     window.setFilter = function(type, value) {
         STATE.filterType = type;
         STATE.filterValue = value;
+
         if (type === 'ALL') {
             STATE.filteredTasks = [...STATE.allTasks];
             document.getElementById('filter-badge').innerText = "All Time History";
             document.getElementById('btn-reset').classList.add('hidden');
         } else if (type === 'MONTH') {
+            // value = YYYY-MM
             STATE.filteredTasks = STATE.allTasks.filter(t => t.completed_at.startsWith(value));
             const [y, m] = value.split('-');
             const dateObj = new Date(y, m-1);
@@ -634,44 +542,24 @@
             document.getElementById('btn-reset').classList.remove('hidden');
         }
         updateStats();
-        renderCalendar();
+        renderFullHeatmap(); // Update selections
         renderCharts();
-    }
-
-    function renderCalendar() {
-        const year = STATE.calViewDate.getFullYear();
-        const month = STATE.calViewDate.getMonth();
-        const firstDay = new Date(year, month, 1);
-        const lastDay = new Date(year, month + 1, 0);
-        const daysInMonth = lastDay.getDate();
-        const startDayIndex = firstDay.getDay();
-        const container = document.getElementById('calendar-body');
-        container.innerHTML = '';
-        for(let i=0; i<startDayIndex; i++) {
-            container.appendChild(Object.assign(document.createElement('div'), {className:'cal-day empty'}));
-        }
-        for(let d=1; d<=daysInMonth; d++) {
-            const dateStr = `${year}-${String(month+1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const count = STATE.taskMap[dateStr] || 0;
-            const div = document.createElement('div');
-            let heat = 0;
-            if(count>0) heat = count<=2?1 : count<=5?2 : count<=8?3 : count<=12?4 : 5;
-            div.className = `cal-day heat-${heat}`;
-            if(STATE.filterType === 'DAY' && STATE.filterValue === dateStr) div.classList.add('selected');
-            div.onclick = () => window.filterByDay(dateStr);
-            div.innerHTML = `<span class="cal-number">${d}</span>${count>0?`<span class="cal-count">${count}</span>`:''}`;
-            container.appendChild(div);
-        }
     }
 
     function updateStats() {
         const tasks = STATE.filteredTasks;
         document.getElementById('stat-count').innerText = tasks.length.toLocaleString();
+        
         let divisor = 1;
-        if(STATE.filterType === 'ALL' || STATE.filterType === 'MONTH') {
+        if(STATE.filterType === 'ALL') {
+             const dates = new Set(tasks.map(t=>t.completed_at.split('T')[0]));
+             divisor = dates.size || 1;
+        } else if (STATE.filterType === 'MONTH') {
+             // For a specific month, divisor is unique active days in that month
              const dates = new Set(tasks.map(t=>t.completed_at.split('T')[0]));
              divisor = dates.size || 1;
         }
+
         document.getElementById('stat-avg').innerText = (tasks.length / divisor).toFixed(1);
         const hourMap = {};
         const dayMap = [0,0,0,0,0,0,0];
@@ -693,24 +581,30 @@
         const weekData = [0,0,0,0,0,0,0];
         const hourData = new Array(24).fill(0);
         const aggMap = {};
+
         STATE.filteredTasks.forEach(t => {
             const d = new Date(t.completed_at);
             weekData[d.getDay()]++;
             hourData[d.getHours()]++;
             let key;
+            
             if (STATE.filterType === 'ALL') {
                 key = t.completed_at.substring(0, 7); 
                 document.getElementById('chart-title-timeline').innerText = "History by Month";
             } else if (STATE.filterType === 'MONTH') {
+                // For Month view, show days
                 key = t.completed_at.substring(0, 10);
                 document.getElementById('chart-title-timeline').innerText = "Daily Breakdown";
             } else {
+                // For Day view, show hours
                 key = d.getHours() + ":00";
                 document.getElementById('chart-title-timeline').innerText = "Hourly Breakdown";
             }
             aggMap[key] = (aggMap[key] || 0) + 1;
         });
+
         Object.keys(aggMap).sort().forEach(k => { timelineLabels.push(k); timelineData.push(aggMap[k]); });
+        
         drawChart('chart-timeline', 'bar', timelineLabels, timelineData);
         drawChart('chart-week', 'bar', ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], weekData);
         drawChart('chart-hours', 'line', [...Array(24).keys()].map(x=>x), hourData);
@@ -745,6 +639,44 @@
                 }
             }
         });
+    }
+
+    // Community
+    window.openCommunityModal = function() { document.getElementById('community-modal').classList.remove('hidden'); }
+    window.closeCommunityModal = function() { document.getElementById('community-modal').classList.add('hidden'); }
+
+    window.exportHeatmap = function() {
+        const element = document.getElementById('full-heatmap-content');
+        const originalBg = element.style.backgroundColor;
+        const theme = localStorage.getItem('theme');
+        if(theme === 'dark') {
+            element.style.backgroundColor = '#2d2d2d';
+            element.style.color = '#ecf0f1';
+            element.style.padding = '20px';
+        } else {
+            element.style.backgroundColor = '#ffffff';
+            element.style.padding = '20px';
+        }
+
+        html2canvas(element).then(canvas => {
+            const link = document.createElement('a');
+            link.download = `todoist-heatmap-history-${Date.now()}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+            element.style.backgroundColor = originalBg;
+            element.style.padding = '0';
+            update(statsRef, { exports: increment(1) });
+        });
+    }
+
+    window.exportChart = function(chartId) {
+        const chart = STATE.charts[chartId];
+        if(!chart) return;
+        const link = document.createElement('a');
+        link.download = `todoist-${chartId}-${Date.now()}.png`;
+        link.href = chart.toBase64Image();
+        link.click();
+        update(statsRef, { exports: increment(1) });
     }
 
     window.resyncData = function() { window.initFetch(true); }
