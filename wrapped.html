@@ -190,6 +190,8 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    // ADDED: Import Auth functions
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
     import { getDatabase, ref, update, increment, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
     const firebaseConfig = {
@@ -203,6 +205,11 @@
     };
 
     const app = initializeApp(firebaseConfig);
+    
+    // ADDED: Sign in anonymously
+    const auth = getAuth(app);
+    signInAnonymously(auth).catch((error) => console.error("Auth Failed:", error));
+
     const db = getDatabase(app);
     const API_URL = 'https://api.todoist.com/sync/v9/completed/get_all';
     

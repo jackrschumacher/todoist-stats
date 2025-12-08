@@ -8,7 +8,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect x='8' y='8' width='112' height='112' rx='28' fill='%23e44232'/%3E%3Cpath d='M36 68 L58 90 L94 38' stroke='white' stroke-width='14' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='94' cy='38' r='9' fill='white'/%3E%3C/svg%3E">
     
     <style>
         /* --- THEME VARIABLES --- */
@@ -295,6 +294,8 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    // ADDED: Import Auth functions
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
     import { getDatabase, ref, update, increment, onValue, get, child } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
     const firebaseConfig = {
@@ -308,6 +309,11 @@
     };
 
     const app = initializeApp(firebaseConfig);
+    
+    // ADDED: Sign in anonymously
+    const auth = getAuth(app);
+    signInAnonymously(auth).catch((error) => console.error("Auth Failed:", error));
+
     const db = getDatabase(app);
     const API_URL = 'https://api.todoist.com/sync/v9/completed/get_all';
     
@@ -329,7 +335,7 @@
         if (!data) return;
         document.getElementById('global-tasks').innerText = (data.tasks_processed || 0).toLocaleString();
         document.getElementById('global-exports').innerText = (data.exports || 0).toLocaleString();
-        document.getElementById('global-wrappeds').innerText = (data.wrappeds_generated || 0).toLocaleString(); // NEW STAT
+        document.getElementById('global-wrappeds').innerText = (data.wrappeds_generated || 0).toLocaleString(); 
         document.getElementById('comm-total').innerText = (data.tasks_processed || 0).toLocaleString();
 
         const totalDays = data.total_days_logged || 1;
