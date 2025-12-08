@@ -11,140 +11,59 @@
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect x='8' y='8' width='112' height='112' rx='28' fill='%23e44232'/%3E%3Cpath d='M36 68 L58 90 L94 38' stroke='white' stroke-width='14' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='94' cy='38' r='9' fill='white'/%3E%3C/svg%3E">
     
     <style>
-        /* --- THEME VARIABLES --- */
-        :root {
-            --bg-color: #f4f6f8;
-            --card-bg: #ffffff;
-            --text-main: #2c3e50;
-            --text-muted: #7f8c8d;
-            --primary: #e44232;
-            --primary-hover: #c0392b;
-            --border: #e1e8ed;
-            --highlight: #ffe0dd;
-            --selected-border: #e44232;
-            --modal-overlay: rgba(0,0,0,0.5);
-        }
-
-        [data-theme="dark"] {
-            --bg-color: #1a1a1a;
-            --card-bg: #2d2d2d;
-            --text-main: #ecf0f1;
-            --text-muted: #bdc3c7;
-            --primary: #ff6b6b;
-            --primary-hover: #ff5252;
-            --border: #404040;
-            --highlight: #3d3d3d;
-            --selected-border: #ff6b6b;
-            --modal-overlay: rgba(0,0,0,0.8);
-        }
-
-        /* --- BASE STYLES --- */
-        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg-color); color: var(--text-main); transition: background 0.3s, color 0.3s; padding-bottom: 70px; }
-        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-        .hidden { display: none !important; }
-        .flex { display: flex; align-items: center; }
-        .between { justify-content: space-between; }
-        .gap-10 { gap: 10px; }
-        
-        /* --- COMPONENTS --- */
-        .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; transition: 0.2s; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }
-        .btn-sm { padding: 4px 10px; font-size: 12px; }
-        .btn-primary { background: var(--primary); color: white; }
-        .btn-primary:hover { background: var(--primary-hover); }
-        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
-        .btn-outline:hover { background: var(--border); }
-        .btn-ghost { background: transparent; color: var(--primary); font-weight: bold; border: 1px solid transparent; }
-        .btn-ghost:hover { background: var(--highlight); }
-        
-        .card { background: var(--card-bg); border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; border: 1px solid var(--border); }
-
-        /* --- SCROLLABLE HEATMAP --- */
-        .heatmap-container {
-            max-height: 400px; 
-            overflow-y: auto;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 10px;
-            background: var(--card-bg);
-            scrollbar-width: thin;
-            scrollbar-color: var(--text-muted) transparent;
-        }
-        .heatmap-container::-webkit-scrollbar { width: 6px; }
-        .heatmap-container::-webkit-scrollbar-thumb { background-color: var(--text-muted); border-radius: 3px; }
-
-        .heatmap-month-wrapper { margin-bottom: 15px; }
-        
-        /* CLICKABLE MONTH LABELS */
-        .heatmap-month-label { 
-            font-size: 13px; font-weight: bold; margin-bottom: 5px; color: var(--text-muted); 
-            cursor: pointer; display: inline-block; transition: 0.2s;
-            padding: 2px 8px; border-radius: 4px;
-        }
-        .heatmap-month-label:hover { color: var(--primary); background: var(--highlight); }
-        .heatmap-month-label.selected { color: white; background: var(--primary); }
-
-        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
-        .cal-day { aspect-ratio: 1; border-radius: 4px; display: flex; justify-content: center; align-items: center; cursor: pointer; border: 1px solid transparent; position: relative; font-size: 10px; font-weight: bold; color: var(--text-main); }
-        .cal-day:hover { border-color: var(--text-muted); transform: scale(1.1); z-index: 2; }
-        .cal-day.selected { border: 2px solid var(--selected-border); transform: scale(1.1); z-index: 3; }
-        .cal-day.empty { background: transparent; cursor: default; pointer-events: none; }
-        
-        .heat-0 { background: var(--bg-color); color: var(--text-muted); opacity: 0.5; }
-        .heat-1 { background: rgba(228, 66, 50, 0.15); }
-        .heat-2 { background: rgba(228, 66, 50, 0.35); }
-        .heat-3 { background: rgba(228, 66, 50, 0.55); color: white; }
-        .heat-4 { background: rgba(228, 66, 50, 0.75); color: white; }
-        .heat-5 { background: #e44232; color: white; }
-
-        /* --- LAYOUT --- */
-        .dashboard-grid { display: grid; grid-template-columns: 350px 1fr; gap: 20px; }
-        @media (max-width: 900px) { .dashboard-grid { grid-template-columns: 1fr; } }
-        
-        .stat-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
-        .stat-tile { background: var(--card-bg); padding: 15px; border-radius: 8px; border: 1px solid var(--border); text-align: center; }
-        .stat-num { font-size: 24px; font-weight: 800; color: var(--text-main); }
-        .stat-lbl { font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-top: 5px; }
-        
-        .chart-container { position: relative; height: 250px; width: 100%; }
-        
-        .login-box { max-width: 500px; margin: 80px auto; text-align: center; }
-        input[type="password"] { width: 100%; padding: 12px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-main); border-radius: 6px; margin-bottom: 15px; box-sizing: border-box; }
-        .progress-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 10px; }
-        .progress-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.3s; }
-
-        /* FOOTER */
-        .community-bar {
-            position: fixed; bottom: 0; left: 0; width: 100%;
-            background: var(--card-bg); border-top: 1px solid var(--border);
-            padding: 10px 20px; font-size: 12px; color: var(--text-muted);
-            display: flex; justify-content: center; gap: 20px;
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.05); z-index: 100;
-            cursor: pointer; transition: background 0.2s;
-        }
-        .community-bar:hover { background: var(--border); }
-        .comm-stat strong { color: var(--primary); font-size: 14px; margin-left: 4px; }
-
-        /* MODAL */
-        .modal-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: var(--modal-overlay); z-index: 2000;
-            display: flex; justify-content: center; align-items: center;
-        }
-        .modal-content {
-            background: var(--card-bg); width: 90%; max-width: 800px;
-            border-radius: 12px; padding: 25px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-            position: relative;
-        }
-
-        /* TOAST NOTIFICATION */
-        #toast {
-            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(20px);
-            background: #333; color: white; padding: 12px 24px; border-radius: 30px;
-            font-weight: 600; box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-            opacity: 0; pointer-events: none; transition: opacity 0.3s, transform 0.3s; z-index: 3000;
-        }
-        #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        :root { --bg-color:#f4f6f8; --card-bg:#ffffff; --text-main:#2c3e50; --text-muted:#7f8c8d; --primary:#e44232; --primary-hover:#c0392b; --border:#e1e8ed; --highlight:#ffe0dd; --selected-border:#e44232; --modal-overlay:rgba(0,0,0,0.5); }
+        [data-theme="dark"] { --bg-color:#1a1a1a; --card-bg:#2d2d2d; --text-main:#ecf0f1; --text-muted:#bdc3c7; --primary:#ff6b6b; --primary-hover:#ff5252; --border:#404040; --highlight:#3d3d3d; --selected-border:#ff6b6b; --modal-overlay:rgba(0,0,0,0.8); }
+        body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background-color:var(--bg-color); color:var(--text-main); transition:background 0.3s,color 0.3s; padding-bottom:70px; }
+        .container { max-width:1200px; margin:0 auto; padding:20px; }
+        .hidden { display:none!important; }
+        .flex { display:flex; align-items:center; }
+        .between { justify-content:space-between; }
+        .gap-10 { gap:10px; }
+        .btn { padding:8px 16px; border-radius:6px; border:none; cursor:pointer; font-size:14px; font-weight:600; transition:0.2s; display:inline-flex; align-items:center; gap:8px; text-decoration:none; }
+        .btn-sm { padding:4px 10px; font-size:12px; }
+        .btn-primary { background:var(--primary); color:white; }
+        .btn-primary:hover { background:var(--primary-hover); }
+        .btn-outline { background:transparent; border:1px solid var(--border); color:var(--text-main); }
+        .btn-outline:hover { background:var(--border); }
+        .btn-ghost { background:transparent; color:var(--primary); font-weight:bold; border:1px solid transparent; }
+        .btn-ghost:hover { background:var(--highlight); }
+        .card { background:var(--card-bg); border-radius:12px; padding:20px; box-shadow:0 4px 6px rgba(0,0,0,0.05); margin-bottom:20px; border:1px solid var(--border); }
+        .heatmap-container { max-height:400px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; padding:10px; background:var(--card-bg); scrollbar-width:thin; scrollbar-color:var(--text-muted) transparent; }
+        .heatmap-container::-webkit-scrollbar { width:6px; }
+        .heatmap-container::-webkit-scrollbar-thumb { background-color:var(--text-muted); border-radius:3px; }
+        .heatmap-month-wrapper { margin-bottom:15px; }
+        .heatmap-month-label { font-size:13px; font-weight:bold; margin-bottom:5px; color:var(--text-muted); cursor:pointer; display:inline-block; transition:0.2s; padding:2px 8px; border-radius:4px; }
+        .heatmap-month-label:hover { color:var(--primary); background:var(--highlight); }
+        .heatmap-month-label.selected { color:white; background:var(--primary); }
+        .calendar-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+        .cal-day { aspect-ratio:1; border-radius:4px; display:flex; justify-content:center; align-items:center; cursor:pointer; border:1px solid transparent; position:relative; font-size:10px; font-weight:bold; color:var(--text-main); }
+        .cal-day:hover { border-color:var(--text-muted); transform:scale(1.1); z-index:2; }
+        .cal-day.selected { border:2px solid var(--selected-border); transform:scale(1.1); z-index:3; }
+        .cal-day.empty { background:transparent; cursor:default; pointer-events:none; }
+        .heat-0 { background:var(--bg-color); color:var(--text-muted); opacity:0.5; }
+        .heat-1 { background:rgba(228,66,50,0.15); }
+        .heat-2 { background:rgba(228,66,50,0.35); }
+        .heat-3 { background:rgba(228,66,50,0.55); color:white; }
+        .heat-4 { background:rgba(228,66,50,0.75); color:white; }
+        .heat-5 { background:#e44232; color:white; }
+        .dashboard-grid { display:grid; grid-template-columns:350px 1fr; gap:20px; }
+        @media (max-width:900px) { .dashboard-grid { grid-template-columns:1fr; } }
+        .stat-tiles { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px; }
+        .stat-tile { background:var(--card-bg); padding:15px; border-radius:8px; border:1px solid var(--border); text-align:center; }
+        .stat-num { font-size:24px; font-weight:800; color:var(--text-main); }
+        .stat-lbl { font-size:11px; text-transform:uppercase; color:var(--text-muted); font-weight:700; margin-top:5px; }
+        .chart-container { position:relative; height:250px; width:100%; }
+        .login-box { max-width:500px; margin:80px auto; text-align:center; }
+        input[type="password"] { width:100%; padding:12px; border:1px solid var(--border); background:var(--card-bg); color:var(--text-main); border-radius:6px; margin-bottom:15px; box-sizing:border-box; }
+        .progress-track { height:6px; background:var(--border); border-radius:3px; overflow:hidden; margin-top:10px; }
+        .progress-fill { height:100%; background:var(--primary); width:0%; transition:width 0.3s; }
+        .community-bar { position:fixed; bottom:0; left:0; width:100%; background:var(--card-bg); border-top:1px solid var(--border); padding:10px 20px; font-size:12px; color:var(--text-muted); display:flex; justify-content:center; gap:20px; box-shadow:0 -2px 10px rgba(0,0,0,0.05); z-index:100; cursor:pointer; transition:background 0.2s; }
+        .community-bar:hover { background:var(--border); }
+        .comm-stat strong { color:var(--primary); font-size:14px; margin-left:4px; }
+        .modal-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:var(--modal-overlay); z-index:2000; display:flex; justify-content:center; align-items:center; }
+        .modal-content { background:var(--card-bg); width:90%; max-width:800px; border-radius:12px; padding:25px; box-shadow:0 10px 25px rgba(0,0,0,0.2); position:relative; }
+        #toast { position:fixed; bottom:30px; left:50%; transform:translateX(-50%) translateY(20px); background:#333; color:white; padding:12px 24px; border-radius:30px; font-weight:600; box-shadow:0 5px 15px rgba(0,0,0,0.2); opacity:0; pointer-events:none; transition:opacity 0.3s, transform 0.3s; z-index:3000; }
+        #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
     </style>
 </head>
 <body>
@@ -334,7 +253,6 @@
         if(STATE.filteredTasks.length > 0) renderCharts();
     }
 
-    // --- SHOW TOAST ---
     window.showToast = function(msg) {
         const t = document.getElementById('toast');
         t.innerText = msg;
@@ -342,11 +260,27 @@
         setTimeout(() => t.classList.remove('show'), 3000);
     }
 
-    // --- FETCH WITH DEDUPING & TOASTS ---
+    // --- FETCH WITH CACHING ---
     window.initFetch = async function(isResync = false) {
         const token = document.getElementById('api-token').value.trim();
         if (!token) return alert("Please enter API Token");
 
+        // 1. TRY CACHE FIRST
+        if (!isResync) {
+            const cached = localStorage.getItem('todoist_task_cache');
+            if (cached) {
+                try {
+                    STATE.allTasks = JSON.parse(cached);
+                    processData();
+                    document.getElementById('view-login').classList.add('hidden');
+                    document.getElementById('view-dashboard').classList.remove('hidden');
+                    setTimeout(() => { document.getElementById('heatmap-scroll-area').scrollTop = document.getElementById('heatmap-scroll-area').scrollHeight; }, 100);
+                    return; // Stop execution here (don't fetch)
+                } catch(e) { console.log("Cache invalid", e); }
+            }
+        }
+
+        // 2. NETWORK FETCH
         if(!isResync) {
             document.getElementById('view-login').classList.remove('hidden');
             document.getElementById('view-dashboard').classList.add('hidden');
@@ -384,8 +318,12 @@
             }
 
             localStorage.setItem('todoist_token', token);
-            processData();
+            
+            // SAVE TO CACHE (Optimized to save space)
+            const minimalData = STATE.allTasks.map(t => ({ id: t.id, completed_at: t.completed_at }));
+            try { localStorage.setItem('todoist_task_cache', JSON.stringify(minimalData)); } catch(e) { console.warn("Cache full"); }
 
+            processData();
             calculateAndSendDeltas(STATE.allTasks);
 
             if(isResync) window.showToast("Stats updated!");
@@ -443,7 +381,6 @@
         localStorage.setItem('todoist_last_sync_stats', JSON.stringify(currentStats));
     }
 
-    // --- RENDER HEATMAP ---
     function renderFullHeatmap() {
         const container = document.getElementById('full-heatmap-content'); container.innerHTML = '';
         if(STATE.allTasks.length === 0) return;
@@ -552,7 +489,12 @@
         update(statsRef, { exports: increment(1) });
     }
     window.resyncData = function() { window.initFetch(true); }
-    window.logout = function() { localStorage.removeItem('todoist_token'); location.reload(); }
+    window.logout = function() { 
+        localStorage.removeItem('todoist_token'); 
+        localStorage.removeItem('todoist_task_cache'); // Clear Cache on Logout
+        localStorage.removeItem('todoist_last_sync_stats'); 
+        location.reload(); 
+    }
 </script>
 </body>
 </html>

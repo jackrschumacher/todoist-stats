@@ -36,6 +36,14 @@
         p { font-size: 1.5rem; color: #aaa; max-width: 600px; line-height: 1.4; }
         .highlight { color: #e44232; }
 
+        /* INPUTS FOR LOGIN SLIDE */
+        .login-input {
+            padding: 15px; width: 300px; border-radius: 8px; border: 1px solid #444;
+            background: #222; color: white; font-size: 1rem; margin-bottom: 20px;
+            outline: none; transition: border 0.3s; text-align: center;
+        }
+        .login-input:focus { border-color: #e44232; }
+
         /* YEAR MENU */
         #year-grid {
             display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); 
@@ -126,6 +134,19 @@
 
 <div id="stage">
     
+    <div class="slide" id="slide-login">
+        <h1>Welcome to Wrapped</h1>
+        <p>Enter your Todoist API Token to generate your report.</p>
+        <div style="margin-top:20px;">
+            <input type="password" id="login-key" class="login-input" placeholder="Paste API Token Here">
+            <br>
+            <button class="nav-btn" style="background: #e44232; border:none;" onclick="window.handleLogin()">Start Experience</button>
+        </div>
+        <p style="font-size: 0.9rem; margin-top: 20px; opacity: 0.6;">
+            (Settings > Integrations > Developer)
+        </p>
+    </div>
+
     <div class="slide active" id="slide-0">
         <div class="spinner"></div>
         <h1>Preparing Your History...</h1>
@@ -250,16 +271,38 @@
     window.onload = async () => {
         setupProgressBar();
         const token = localStorage.getItem('todoist_token');
-        if(!token) { alert("Please log in on dashboard."); window.location.href = "index.html"; return; }
-        await fetchAllData(token);
+        
+        if(token) {
+            // Already logged in
+            await fetchAllData(token);
+        } else {
+            // Show Login Slide (Hide Loader)
+            document.getElementById('slide-0').classList.remove('active');
+            document.getElementById('slide-login').classList.add('active');
+        }
     };
+
+    window.handleLogin = function() {
+        const inputKey = document.getElementById('login-key').value.trim();
+        if(!inputKey) {
+            alert("Please paste your API token.");
+            return;
+        }
+        localStorage.setItem('todoist_token', inputKey);
+        
+        // Switch slides to loading
+        document.getElementById('slide-login').classList.remove('active');
+        document.getElementById('slide-0').classList.add('active');
+        
+        fetchAllData(inputKey);
+    }
 
     async function fetchAllData(token) {
         let offset = 0; let hasMore = true;
         try {
             while(hasMore) {
                 const res = await fetch(`${API_URL}?limit=200&offset=${offset}`, { headers: { 'Authorization': `Bearer ${token}` } });
-                if(!res.ok) throw new Error("API Error");
+                if(!res.ok) throw new Error("API Error or Invalid Token");
                 const data = await res.json();
                 const items = data.items || [];
                 if(items.length > 0) {
@@ -270,7 +313,12 @@
             }
             processYears();
             window.goToSlide(1); 
-        } catch (e) { alert("Error: " + e.message); window.location.href = "index.html"; }
+        } catch (e) {
+            alert("Error: " + e.message + ". Check your token.");
+            // Go back to login if failed
+            document.getElementById('slide-0').classList.remove('active');
+            document.getElementById('slide-login').classList.add('active');
+        }
     }
 
     function processYears() {
