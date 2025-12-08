@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Todoist Analytics Dashboard</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect x='8' y='8' width='112' height='112' rx='28' fill='%23e44232'/%3E%3Cpath d='M36 68 L58 90 L94 38' stroke='white' stroke-width='14' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='94' cy='38' r='9' fill='white'/%3E%3C/svg%3E">
+    <title>Todoist Analytics + Community Trends</title>
+    
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect x='8' y='8' width='112' height='112' rx='28' fill='%23e44232'/%3E%3Cpath d='M36 68 L58 90 L94 38' stroke='white' stroke-width='14' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='94' cy='38' r='9' fill='white'/%3E%3C/svg%3E">
     
     <style>
         /* --- THEME VARIABLES --- */
@@ -135,21 +136,32 @@
             box-shadow: 0 10px 25px rgba(0,0,0,0.2);
             position: relative;
         }
+
+        /* TOAST NOTIFICATION */
+        #toast {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(20px);
+            background: #333; color: white; padding: 12px 24px; border-radius: 30px;
+            font-weight: 600; box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            opacity: 0; pointer-events: none; transition: opacity 0.3s, transform 0.3s; z-index: 3000;
+        }
+        #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     </style>
 </head>
 <body>
 
+<div id="toast"></div>
+
 <div class="community-bar" onclick="window.openCommunityModal()" title="Click to view global trends">
     <div class="comm-stat">Global Tasks: <strong id="global-tasks">...</strong></div>
     <div class="comm-stat">Exports: <strong id="global-exports">...</strong></div>
-    <div class="comm-stat">Wrappeds Generated: <strong id="global-wrappeds">...</strong></div>
+    <div class="comm-stat">Wrappeds: <strong id="global-wrappeds">...</strong></div>
     <div style="font-size:10px; align-self:center; opacity:0.7;">(Click for stats)</div>
 </div>
 
 <div id="community-modal" class="modal-overlay hidden">
     <div class="modal-content">
         <div class="flex between" style="margin-bottom: 20px;">
-            <h2 style="margin:0; color: var(--primary);"> Global Community Stats</h2>
+            <h2 style="margin:0; color: var(--primary);">Global Community Stats</h2>
             <button onclick="window.closeCommunityModal()" class="btn btn-outline btn-sm"><i class="fa-solid fa-times"></i></button>
         </div>
         <div class="stat-tiles" style="grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px;">
@@ -180,11 +192,8 @@
         <p style="color: var(--text-muted);">Visualize your productivity history.</p>
         <input type="password" id="api-token" placeholder="Paste API Token (Settings > Integrations)">
         <button onclick="window.initFetch()" class="btn btn-primary" style="width: 100%; justify-content: center;">Load Data</button>
-
         <div id="loading-ui" class="hidden" style="margin-top: 20px;">
-            <div class="flex between" style="font-size: 12px;">
-                <span>Fetching history...</span><span id="load-count">0</span>
-            </div>
+            <div class="flex between" style="font-size: 12px;"><span>Fetching history...</span><span id="load-count">0</span></div>
             <div class="progress-track"><div id="progress-bar" class="progress-fill"></div></div>
             <div id="error-msg" style="color: red; font-size: 12px; margin-top: 10px;"></div>
         </div>
@@ -192,19 +201,14 @@
 </div>
 
 <div id="view-dashboard" class="container hidden">
-    
     <div class="flex between" style="margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid var(--border);">
         <div class="flex gap-10">
             <h2 style="margin:0; color: var(--primary);">Analytics</h2>
             <div id="filter-badge" style="background: var(--text-main); color: var(--bg-color); padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold;">All Time</div>
             <button id="btn-reset" onclick="window.resetFilter()" class="hidden btn btn-outline btn-sm"><i class="fa-solid fa-times"></i> Clear</button>
         </div>
-        
         <div class="flex gap-10">
-            <a href="wrapped.html" class="btn btn-primary" style="font-size: 12px;">
-                <i class="fa-solid fa-gift"></i> Play Wrapped
-            </a>
-            
+            <a href="wrapped.html" class="btn btn-primary" style="font-size: 12px;"><i class="fa-solid fa-gift"></i> Play Wrapped</a>
             <button onclick="window.toggleTheme()" class="btn btn-outline" title="Dark Mode"><i id="theme-icon" class="fa-solid fa-moon"></i></button>
             <button onclick="window.resyncData()" class="btn btn-outline" title="Resync"><i class="fa-solid fa-rotate"></i></button>
             <button onclick="window.logout()" class="btn btn-outline" title="Logout"><i class="fa-solid fa-sign-out-alt"></i></button>
@@ -212,80 +216,50 @@
     </div>
 
     <div class="dashboard-grid">
-        
         <div>
             <div class="card">
                 <div class="flex between" style="margin-bottom: 10px;">
                     <h3 style="margin:0; font-size: 16px;">History Heatmap</h3>
-                    <button class="btn btn-outline btn-sm" onclick="window.exportHeatmap()" title="Export Heatmap">
-                        <i class="fa-solid fa-camera"></i> Export
-                    </button>
+                    <button class="btn btn-outline btn-sm" onclick="window.exportHeatmap()" title="Export Heatmap"><i class="fa-solid fa-camera"></i> Export</button>
                 </div>
-                
                 <div style="margin-bottom: 5px; display: grid; grid-template-columns: repeat(7, 1fr); font-size: 10px; color: var(--text-muted); text-align: center;">
                     <div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div>
                 </div>
-
-                <div id="heatmap-scroll-area" class="heatmap-container">
-                    <div id="full-heatmap-content">
-                        </div>
-                </div>
-                <div style="font-size:11px; color:var(--text-muted); text-align:center; margin-top:8px;">
-                    Click a Month or Day to filter charts.
-                </div>
+                <div id="heatmap-scroll-area" class="heatmap-container"><div id="full-heatmap-content"></div></div>
+                <div style="font-size:11px; color:var(--text-muted); text-align:center; margin-top:8px;">Click a Month or Day to filter charts.</div>
             </div>
-
             <div class="stat-tiles">
-                <div class="stat-tile">
-                    <div class="stat-num" id="stat-count">0</div>
-                    <div class="stat-lbl">Tasks</div>
-                </div>
-                <div class="stat-tile">
-                    <div class="stat-num" id="stat-avg">0</div>
-                    <div class="stat-lbl">Daily Avg</div>
-                </div>
+                <div class="stat-tile"><div class="stat-num" id="stat-count">0</div><div class="stat-lbl">Tasks</div></div>
+                <div class="stat-tile"><div class="stat-num" id="stat-avg">0</div><div class="stat-lbl">Daily Avg</div></div>
             </div>
-            
              <div class="card">
                 <h3 style="margin-top:0; font-size: 14px; color: var(--text-muted); text-transform:uppercase;">Peak Productivity</h3>
-                <div class="flex between" style="margin-top: 15px;">
-                    <span>Best Time:</span><strong id="stat-best-hour">-</strong>
-                </div>
-                <div class="flex between" style="margin-top: 10px;">
-                    <span>Best Weekday:</span><strong id="stat-best-day">-</strong>
-                </div>
+                <div class="flex between" style="margin-top: 15px;"><span>Best Time:</span><strong id="stat-best-hour">-</strong></div>
+                <div class="flex between" style="margin-top: 10px;"><span>Best Weekday:</span><strong id="stat-best-day">-</strong></div>
             </div>
         </div>
-
         <div>
             <div class="card">
                 <div class="flex between">
                     <h3 id="chart-title-timeline" style="margin:0; font-size: 16px;">Activity Timeline</h3>
                     <button onclick="window.exportChart('chart-timeline')" class="btn btn-outline btn-sm"><i class="fa-solid fa-download"></i></button>
                 </div>
-                <div class="chart-container">
-                    <canvas id="chart-timeline"></canvas>
-                </div>
+                <div class="chart-container"><canvas id="chart-timeline"></canvas></div>
             </div>
-
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                 <div class="card">
                     <div class="flex between">
                         <h3 style="margin:0; font-size: 14px;">Weekly Pattern</h3>
                         <button onclick="window.exportChart('chart-week')" class="btn btn-outline btn-sm"><i class="fa-solid fa-download"></i></button>
                     </div>
-                    <div class="chart-container" style="height: 180px;">
-                        <canvas id="chart-week"></canvas>
-                    </div>
+                    <div class="chart-container" style="height: 180px;"><canvas id="chart-week"></canvas></div>
                 </div>
                 <div class="card">
                     <div class="flex between">
                         <h3 style="margin:0; font-size: 14px;">Hourly Habits</h3>
                         <button onclick="window.exportChart('chart-hours')" class="btn btn-outline btn-sm"><i class="fa-solid fa-download"></i></button>
                     </div>
-                    <div class="chart-container" style="height: 180px;">
-                        <canvas id="chart-hours"></canvas>
-                    </div>
+                    <div class="chart-container" style="height: 180px;"><canvas id="chart-hours"></canvas></div>
                 </div>
             </div>
         </div>
@@ -294,7 +268,6 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    // ADDED: Import Auth functions
     import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
     import { getDatabase, ref, update, increment, onValue, get, child } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
@@ -309,39 +282,25 @@
     };
 
     const app = initializeApp(firebaseConfig);
-    
-    // ADDED: Sign in anonymously
     const auth = getAuth(app);
-    signInAnonymously(auth).catch((error) => console.error("Auth Failed:", error));
-
+    signInAnonymously(auth).catch(console.error);
     const db = getDatabase(app);
     const API_URL = 'https://api.todoist.com/sync/v9/completed/get_all';
     
     let STATE = {
-        allTasks: [],     
-        filteredTasks: [], 
-        taskMap: {},
-        filterType: 'ALL',
-        filterValue: null,
-        charts: {},
-        minDate: new Date(),
-        maxDate: new Date()
+        allTasks: [], filteredTasks: [], taskMap: {}, filterType: 'ALL', filterValue: null, charts: {}, minDate: new Date(), maxDate: new Date()
     };
 
-    // --- 1. FIREBASE ---
     const statsRef = ref(db, 'global_stats');
     onValue(statsRef, (snapshot) => {
         const data = snapshot.val();
         if (!data) return;
         document.getElementById('global-tasks').innerText = (data.tasks_processed || 0).toLocaleString();
         document.getElementById('global-exports').innerText = (data.exports || 0).toLocaleString();
-        document.getElementById('global-wrappeds').innerText = (data.wrappeds_generated || 0).toLocaleString(); 
+        document.getElementById('global-wrappeds').innerText = (data.wrappeds_generated || 0).toLocaleString();
         document.getElementById('comm-total').innerText = (data.tasks_processed || 0).toLocaleString();
-
         const totalDays = data.total_days_logged || 1;
-        const avg = (data.tasks_processed / totalDays).toFixed(1);
-        document.getElementById('comm-avg').innerText = avg;
-
+        document.getElementById('comm-avg').innerText = (data.tasks_processed / totalDays).toFixed(1);
         if (data.hours) {
             let maxVal = 0, bestHour = 0;
             for(let i=0; i<24; i++) { if((data.hours[i]||0) > maxVal) { maxVal = data.hours[i]; bestHour = i; } }
@@ -355,7 +314,6 @@
         }
     });
 
-    // --- 2. INIT ---
     window.onload = () => {
         if(localStorage.getItem('theme') === 'dark') window.applyTheme('dark');
         const savedToken = localStorage.getItem('todoist_token');
@@ -369,7 +327,6 @@
         const isDark = document.body.getAttribute('data-theme') === 'dark';
         window.applyTheme(isDark ? 'light' : 'dark');
     }
-
     window.applyTheme = function(theme) {
         document.body.setAttribute('data-theme', theme);
         localStorage.setItem('theme', theme);
@@ -377,7 +334,15 @@
         if(STATE.filteredTasks.length > 0) renderCharts();
     }
 
-    // --- 3. FETCH ---
+    // --- SHOW TOAST ---
+    window.showToast = function(msg) {
+        const t = document.getElementById('toast');
+        t.innerText = msg;
+        t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    // --- FETCH WITH DEDUPING & TOASTS ---
     window.initFetch = async function(isResync = false) {
         const token = document.getElementById('api-token').value.trim();
         if (!token) return alert("Please enter API Token");
@@ -385,24 +350,32 @@
         if(!isResync) {
             document.getElementById('view-login').classList.remove('hidden');
             document.getElementById('view-dashboard').classList.add('hidden');
+            document.getElementById('loading-ui').classList.remove('hidden');
+        } else {
+            window.showToast("Syncing with Todoist...");
         }
-        document.getElementById('loading-ui').classList.remove('hidden');
         
         STATE.allTasks = [];
+        const taskIds = new Set(); 
         let offset = 0;
         let hasMore = true;
 
         try {
             while(hasMore) {
-                const res = await fetch(`${API_URL}?limit=200&offset=${offset}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
+                const res = await fetch(`${API_URL}?limit=200&offset=${offset}`, { headers: { 'Authorization': `Bearer ${token}` } });
                 if(res.status === 429) { await new Promise(r => setTimeout(r, 4000)); continue; }
                 if(!res.ok) throw new Error("Connection Failed");
                 const data = await res.json();
                 const items = data.items || [];
+                
                 if(items.length > 0) {
-                    STATE.allTasks = STATE.allTasks.concat(items);
+                    items.forEach(item => {
+                        if (!taskIds.has(item.id)) {
+                            STATE.allTasks.push(item);
+                            taskIds.add(item.id);
+                        }
+                    });
+                    
                     offset += 200;
                     document.getElementById('load-count').innerText = STATE.allTasks.length;
                     document.getElementById('progress-bar').style.width = '50%'; 
@@ -413,171 +386,121 @@
             localStorage.setItem('todoist_token', token);
             processData();
 
-            // Firebase Logic
-            const localHours = new Array(24).fill(0);
-            const localDays = new Array(7).fill(0);
-            const uniqueDates = new Set();
-            STATE.allTasks.forEach(t => {
-                const d = new Date(t.completed_at);
-                localHours[d.getHours()]++;
-                localDays[d.getDay()]++;
-                uniqueDates.add(t.completed_at.substring(0, 10));
-            });
-            const updates = {};
-            updates['global_stats/tasks_processed'] = increment(STATE.allTasks.length);
-            updates['global_stats/total_days_logged'] = increment(uniqueDates.size);
-            localHours.forEach((count, hour) => { if(count > 0) updates[`global_stats/hours/${hour}`] = increment(count); });
-            localDays.forEach((count, day) => { if(count > 0) updates[`global_stats/weekdays/${day}`] = increment(count); });
-            update(ref(db), updates).catch(console.error);
+            calculateAndSendDeltas(STATE.allTasks);
+
+            if(isResync) window.showToast("Stats updated!");
 
             document.getElementById('view-login').classList.add('hidden');
             document.getElementById('view-dashboard').classList.remove('hidden');
-
-            setTimeout(() => {
-                const container = document.getElementById('heatmap-scroll-area');
-                container.scrollTop = container.scrollHeight;
-            }, 100);
+            document.getElementById('loading-ui').classList.add('hidden');
+            setTimeout(() => { document.getElementById('heatmap-scroll-area').scrollTop = document.getElementById('heatmap-scroll-area').scrollHeight; }, 100);
 
         } catch (e) {
-            document.getElementById('error-msg').innerText = e.message;
-        } finally {
+            if(isResync) window.showToast("Sync failed: " + e.message);
+            else document.getElementById('error-msg').innerText = e.message;
             document.getElementById('loading-ui').classList.add('hidden');
+        } 
+    }
+
+    function calculateAndSendDeltas(currentTasks) {
+        const lastStatsStr = localStorage.getItem('todoist_last_sync_stats');
+        let lastStats = lastStatsStr ? JSON.parse(lastStatsStr) : { total: 0, hours: Array(24).fill(0), weekdays: Array(7).fill(0), months: {} };
+
+        const currentStats = { total: currentTasks.length, hours: Array(24).fill(0), weekdays: Array(7).fill(0), months: {} };
+        const uniqueDates = new Set();
+
+        currentTasks.forEach(t => {
+            const d = new Date(t.completed_at);
+            currentStats.hours[d.getHours()]++;
+            currentStats.weekdays[d.getDay()]++;
+            const monthKey = t.completed_at.substring(0, 7);
+            currentStats.months[monthKey] = (currentStats.months[monthKey] || 0) + 1;
+            uniqueDates.add(t.completed_at.substring(0, 10));
+        });
+
+        if (currentStats.total > lastStats.total) {
+            const updates = {};
+            const totalDelta = currentStats.total - lastStats.total;
+            updates['global_stats/tasks_processed'] = increment(totalDelta);
+            
+            currentStats.hours.forEach((val, i) => {
+                const diff = val - (lastStats.hours[i] || 0);
+                if (diff > 0) updates[`global_stats/hours/${i}`] = increment(diff);
+            });
+
+            currentStats.weekdays.forEach((val, i) => {
+                const diff = val - (lastStats.weekdays[i] || 0);
+                if (diff > 0) updates[`global_stats/weekdays/${i}`] = increment(diff);
+            });
+
+            for (const [month, val] of Object.entries(currentStats.months)) {
+                const diff = val - (lastStats.months[month] || 0);
+                if (diff > 0) updates[`community_monthly/${month}`] = increment(diff);
+            }
+
+            update(ref(db), updates).catch(console.error);
         }
+        localStorage.setItem('todoist_last_sync_stats', JSON.stringify(currentStats));
     }
 
     // --- RENDER HEATMAP ---
     function renderFullHeatmap() {
-        const container = document.getElementById('full-heatmap-content');
-        container.innerHTML = '';
-
+        const container = document.getElementById('full-heatmap-content'); container.innerHTML = '';
         if(STATE.allTasks.length === 0) return;
-
         const dates = STATE.allTasks.map(t => new Date(t.completed_at));
-        const minDate = new Date(Math.min(...dates));
-        const maxDate = new Date();
-
+        const minDate = new Date(Math.min(...dates)); const maxDate = new Date();
         let currentMonth = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
         const endMonth = new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
-
         while(currentMonth <= endMonth) {
-            const year = currentMonth.getFullYear();
-            const month = currentMonth.getMonth();
+            const year = currentMonth.getFullYear(); const month = currentMonth.getMonth();
             const monthLabel = currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
             const monthKey = `${year}-${String(month+1).padStart(2,'0')}`;
-
-            const monthWrapper = document.createElement('div');
-            monthWrapper.className = 'heatmap-month-wrapper';
-
-            // CLICKABLE MONTH LABEL
-            const labelEl = document.createElement('div');
-            labelEl.className = 'heatmap-month-label';
+            const monthWrapper = document.createElement('div'); monthWrapper.className = 'heatmap-month-wrapper';
+            const labelEl = document.createElement('div'); labelEl.className = 'heatmap-month-label';
             if(STATE.filterType === 'MONTH' && STATE.filterValue === monthKey) labelEl.classList.add('selected');
-            labelEl.innerText = monthLabel;
-            labelEl.onclick = () => window.filterByMonth(monthKey);
+            labelEl.innerText = monthLabel; labelEl.onclick = () => window.filterByMonth(monthKey);
             monthWrapper.appendChild(labelEl);
-
-            const grid = document.createElement('div');
-            grid.className = 'calendar-grid';
-
-            const daysInMonth = new Date(year, month + 1, 0).getDate();
-            const startDayIndex = new Date(year, month, 1).getDay();
-
-            for(let i=0; i<startDayIndex; i++) {
-                const empty = document.createElement('div');
-                empty.className = 'cal-day empty';
-                grid.appendChild(empty);
-            }
-
+            const grid = document.createElement('div'); grid.className = 'calendar-grid';
+            const daysInMonth = new Date(year, month + 1, 0).getDate(); const startDayIndex = new Date(year, month, 1).getDay();
+            for(let i=0; i<startDayIndex; i++) { grid.appendChild(Object.assign(document.createElement('div'), {className:'cal-day empty'})); }
             for(let d=1; d<=daysInMonth; d++) {
                 const dateStr = `${year}-${String(month+1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
                 const count = STATE.taskMap[dateStr] || 0;
-                
-                const dayEl = document.createElement('div');
-                let heat = 0;
+                const dayEl = document.createElement('div'); let heat = 0;
                 if(count>0) heat = count<=2?1 : count<=5?2 : count<=8?3 : count<=12?4 : 5;
-                
                 dayEl.className = `cal-day heat-${heat}`;
                 if(STATE.filterType === 'DAY' && STATE.filterValue === dateStr) dayEl.classList.add('selected');
-                
-                dayEl.onclick = () => window.filterByDay(dateStr);
-                dayEl.title = `${dateStr}: ${count} tasks`;
-                dayEl.innerText = d;
-                
+                dayEl.onclick = () => window.filterByDay(dateStr); dayEl.title = `${dateStr}: ${count} tasks`; dayEl.innerText = d;
                 grid.appendChild(dayEl);
             }
-            
-            monthWrapper.appendChild(grid);
-            container.appendChild(monthWrapper);
-            currentMonth.setMonth(currentMonth.getMonth() + 1);
+            monthWrapper.appendChild(grid); container.appendChild(monthWrapper); currentMonth.setMonth(currentMonth.getMonth() + 1);
         }
     }
 
-    // --- FILTER LOGIC ---
     function processData() {
         STATE.taskMap = {};
-        STATE.allTasks.forEach(t => {
-            const date = t.completed_at.split('T')[0];
-            STATE.taskMap[date] = (STATE.taskMap[date] || 0) + 1;
-        });
-        renderFullHeatmap();
-        window.resetFilter();
+        STATE.allTasks.forEach(t => { const date = t.completed_at.split('T')[0]; STATE.taskMap[date] = (STATE.taskMap[date] || 0) + 1; });
+        renderFullHeatmap(); window.resetFilter();
     }
 
     window.resetFilter = function() { window.setFilter('ALL', null); }
-    window.filterByMonth = function(monthStr) {
-        if(STATE.filterType === 'MONTH' && STATE.filterValue === monthStr) window.resetFilter();
-        else window.setFilter('MONTH', monthStr);
-    }
-    window.filterByDay = function(dateStr) {
-        if(STATE.filterType === 'DAY' && STATE.filterValue === dateStr) window.resetFilter();
-        else window.setFilter('DAY', dateStr);
-    }
+    window.filterByMonth = function(monthStr) { if(STATE.filterType === 'MONTH' && STATE.filterValue === monthStr) window.resetFilter(); else window.setFilter('MONTH', monthStr); }
+    window.filterByDay = function(dateStr) { if(STATE.filterType === 'DAY' && STATE.filterValue === dateStr) window.resetFilter(); else window.setFilter('DAY', dateStr); }
 
     window.setFilter = function(type, value) {
-        STATE.filterType = type;
-        STATE.filterValue = value;
-
-        if (type === 'ALL') {
-            STATE.filteredTasks = [...STATE.allTasks];
-            document.getElementById('filter-badge').innerText = "All Time History";
-            document.getElementById('btn-reset').classList.add('hidden');
-        } else if (type === 'MONTH') {
-            STATE.filteredTasks = STATE.allTasks.filter(t => t.completed_at.startsWith(value));
-            const [y, m] = value.split('-');
-            const dateObj = new Date(y, m-1);
-            document.getElementById('filter-badge').innerText = dateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-            document.getElementById('btn-reset').classList.remove('hidden');
-        } else if (type === 'DAY') {
-            STATE.filteredTasks = STATE.allTasks.filter(t => t.completed_at.startsWith(value));
-            document.getElementById('filter-badge').innerText = value;
-            document.getElementById('btn-reset').classList.remove('hidden');
-        }
-        updateStats();
-        renderFullHeatmap(); // Update selections
-        renderCharts();
+        STATE.filterType = type; STATE.filterValue = value;
+        if (type === 'ALL') { STATE.filteredTasks = [...STATE.allTasks]; document.getElementById('filter-badge').innerText = "All Time History"; document.getElementById('btn-reset').classList.add('hidden'); }
+        else if (type === 'MONTH') { STATE.filteredTasks = STATE.allTasks.filter(t => t.completed_at.startsWith(value)); document.getElementById('filter-badge').innerText = value; document.getElementById('btn-reset').classList.remove('hidden'); }
+        else if (type === 'DAY') { STATE.filteredTasks = STATE.allTasks.filter(t => t.completed_at.startsWith(value)); document.getElementById('filter-badge').innerText = value; document.getElementById('btn-reset').classList.remove('hidden'); }
+        updateStats(); renderFullHeatmap(); renderCharts();
     }
 
     function updateStats() {
-        const tasks = STATE.filteredTasks;
-        document.getElementById('stat-count').innerText = tasks.length.toLocaleString();
-        
-        let divisor = 1;
-        if(STATE.filterType === 'ALL') {
-             const dates = new Set(tasks.map(t=>t.completed_at.split('T')[0]));
-             divisor = dates.size || 1;
-        } else if (STATE.filterType === 'MONTH') {
-             const dates = new Set(tasks.map(t=>t.completed_at.split('T')[0]));
-             divisor = dates.size || 1;
-        }
-
+        const tasks = STATE.filteredTasks; document.getElementById('stat-count').innerText = tasks.length.toLocaleString();
+        let divisor = 1; if(STATE.filterType === 'ALL' || STATE.filterType === 'MONTH') { const dates = new Set(tasks.map(t=>t.completed_at.split('T')[0])); divisor = dates.size || 1; }
         document.getElementById('stat-avg').innerText = (tasks.length / divisor).toFixed(1);
-        const hourMap = {};
-        const dayMap = [0,0,0,0,0,0,0];
-        tasks.forEach(t => {
-            const d = new Date(t.completed_at);
-            hourMap[d.getHours()] = (hourMap[d.getHours()] || 0) + 1;
-            dayMap[d.getDay()]++;
-        });
+        const hourMap = {}; const dayMap = [0,0,0,0,0,0,0];
+        tasks.forEach(t => { const d = new Date(t.completed_at); hourMap[d.getHours()] = (hourMap[d.getHours()] || 0) + 1; dayMap[d.getDay()]++; });
         const bestHour = Object.keys(hourMap).reduce((a, b) => hourMap[a] > hourMap[b] ? a : b, -1);
         const bestDayIndex = dayMap.indexOf(Math.max(...dayMap));
         const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -586,33 +509,15 @@
     }
 
     function renderCharts() {
-        const timelineLabels = [];
-        const timelineData = [];
-        const weekData = [0,0,0,0,0,0,0];
-        const hourData = new Array(24).fill(0);
-        const aggMap = {};
-
+        const timelineLabels = []; const timelineData = []; const weekData = [0,0,0,0,0,0,0]; const hourData = new Array(24).fill(0); const aggMap = {};
         STATE.filteredTasks.forEach(t => {
-            const d = new Date(t.completed_at);
-            weekData[d.getDay()]++;
-            hourData[d.getHours()]++;
+            const d = new Date(t.completed_at); weekData[d.getDay()]++; hourData[d.getHours()]++;
             let key;
-            
-            if (STATE.filterType === 'ALL') {
-                key = t.completed_at.substring(0, 7); 
-                document.getElementById('chart-title-timeline').innerText = "History by Month";
-            } else if (STATE.filterType === 'MONTH') {
-                key = t.completed_at.substring(0, 10);
-                document.getElementById('chart-title-timeline').innerText = "Daily Breakdown";
-            } else {
-                key = d.getHours() + ":00";
-                document.getElementById('chart-title-timeline').innerText = "Hourly Breakdown";
-            }
+            if (STATE.filterType === 'ALL') { key = t.completed_at.substring(0, 7); document.getElementById('chart-title-timeline').innerText = "History by Month"; }
+            else { key = STATE.filterType === 'MONTH' ? t.completed_at.substring(0, 10) : d.getHours() + ":00"; document.getElementById('chart-title-timeline').innerText = STATE.filterType === 'MONTH' ? "Daily Breakdown" : "Hourly Breakdown"; }
             aggMap[key] = (aggMap[key] || 0) + 1;
         });
-
         Object.keys(aggMap).sort().forEach(k => { timelineLabels.push(k); timelineData.push(aggMap[k]); });
-        
         drawChart('chart-timeline', 'bar', timelineLabels, timelineData);
         drawChart('chart-week', 'bar', ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], weekData);
         drawChart('chart-hours', 'line', [...Array(24).keys()].map(x=>x), hourData);
@@ -625,68 +530,27 @@
         const gridColor = isDark ? '#404040' : '#eaeaea';
         if(STATE.charts[id]) STATE.charts[id].destroy();
         STATE.charts[id] = new Chart(ctx, {
-            type: type,
-            data: {
-                labels: labels,
-                datasets: [{
-                    data: data,
-                    backgroundColor: '#e44232',
-                    borderColor: '#e44232',
-                    borderWidth: 1,
-                    tension: 0.3,
-                    fill: type === 'line'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { ticks: { color: textColor }, grid: { display: false } },
-                    y: { beginAtZero: true, ticks: { color: textColor }, grid: { color: gridColor } }
-                }
-            }
+            type: type, data: { labels: labels, datasets: [{ data: data, backgroundColor: '#e44232', borderColor: '#e44232', borderWidth: 1, tension: 0.3, fill: type === 'line' }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: textColor }, grid: { display: false } }, y: { beginAtZero: true, ticks: { color: textColor }, grid: { color: gridColor } } } }
         });
     }
 
-    // Community
     window.openCommunityModal = function() { document.getElementById('community-modal').classList.remove('hidden'); }
     window.closeCommunityModal = function() { document.getElementById('community-modal').classList.add('hidden'); }
-
     window.exportHeatmap = function() {
-        const element = document.getElementById('full-heatmap-content');
-        const originalBg = element.style.backgroundColor;
-        const theme = localStorage.getItem('theme');
-        if(theme === 'dark') {
-            element.style.backgroundColor = '#2d2d2d';
-            element.style.color = '#ecf0f1';
-            element.style.padding = '20px';
-        } else {
-            element.style.backgroundColor = '#ffffff';
-            element.style.padding = '20px';
-        }
-
+        const element = document.getElementById('full-heatmap-content'); const originalBg = element.style.backgroundColor; const theme = localStorage.getItem('theme');
+        element.style.backgroundColor = theme === 'dark' ? '#2d2d2d' : '#ffffff'; element.style.padding = '20px';
         html2canvas(element).then(canvas => {
-            const link = document.createElement('a');
-            link.download = `todoist-heatmap-history-${Date.now()}.png`;
-            link.href = canvas.toDataURL();
-            link.click();
-            element.style.backgroundColor = originalBg;
-            element.style.padding = '0';
+            const link = document.createElement('a'); link.download = `todoist-heatmap-history-${Date.now()}.png`; link.href = canvas.toDataURL(); link.click();
+            element.style.backgroundColor = originalBg; element.style.padding = '0';
             update(statsRef, { exports: increment(1) });
         });
     }
-
     window.exportChart = function(chartId) {
-        const chart = STATE.charts[chartId];
-        if(!chart) return;
-        const link = document.createElement('a');
-        link.download = `todoist-${chartId}-${Date.now()}.png`;
-        link.href = chart.toBase64Image();
-        link.click();
+        const chart = STATE.charts[chartId]; if(!chart) return;
+        const link = document.createElement('a'); link.download = `todoist-${chartId}-${Date.now()}.png`; link.href = chart.toBase64Image(); link.click();
         update(statsRef, { exports: increment(1) });
     }
-
     window.resyncData = function() { window.initFetch(true); }
     window.logout = function() { localStorage.removeItem('todoist_token'); location.reload(); }
 </script>

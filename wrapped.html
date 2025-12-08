@@ -6,7 +6,8 @@
     <title>Todoist Wrapped</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script> <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect x='8' y='8' width='112' height='112' rx='28' fill='%23e44232'/%3E%3Cpath d='M36 68 L58 90 L94 38' stroke='white' stroke-width='14' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='94' cy='38' r='9' fill='white'/%3E%3C/svg%3E">
 
     <style>
@@ -62,6 +63,25 @@
             backdrop-filter: blur(5px); transition: 0.2s;
         }
         .nav-btn:hover { background: rgba(255,255,255,0.2); }
+
+        /* ACTION BUTTONS GRID */
+        .action-grid {
+            display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 30px;
+        }
+        .action-btn {
+            display: flex; align-items: center; gap: 8px;
+            padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer;
+            font-weight: bold; font-size: 14px; transition: 0.2s;
+            text-decoration: none; color: white;
+        }
+        .btn-save { background: white; color: black; }
+        .btn-save:hover { background: #ddd; }
+        .btn-email { background: #333; color: white; }
+        .btn-email:hover { background: #444; }
+        .btn-copy { background: #e44232; color: white; }
+        .btn-copy:hover { background: #c0392b; }
+        .btn-dash { border: 1px solid #555; background: transparent; color: #888; }
+        .btn-dash:hover { border-color: #888; color: white; }
 
         /* LOADING */
         .spinner {
@@ -168,15 +188,18 @@
             </div>
         </div>
 
-        <div style="margin-top: 30px; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
-            <button class="nav-btn" onclick="window.shareSummary()" style="background: white; color: black; font-weight: bold;">
-                <i class="fa-solid fa-share-nodes"></i> Share Snapshot
+        <div class="action-grid">
+            <button class="action-btn btn-save" onclick="window.downloadSnapshot()">
+                <i class="fa-solid fa-download"></i> Save Image
             </button>
-            <button class="nav-btn" onclick="window.restart()">
-                <i class="fa-solid fa-rotate-left"></i> Replay
+            <button class="action-btn btn-email" onclick="window.emailTextReport()">
+                <i class="fa-solid fa-envelope"></i> Email Report
             </button>
-            <a href="index.html" class="nav-btn" style="text-decoration: none; border-color: #e44232; color: #e44232;">
-                <i class="fa-solid fa-house"></i> Dashboard
+            <button class="action-btn btn-copy" onclick="window.copySnapshot()">
+                <i class="fa-solid fa-copy"></i> Copy Img
+            </button>
+            <a href="index.html" class="action-btn btn-dash">
+                <i class="fa-solid fa-house"></i> Home
             </a>
         </div>
     </div>
@@ -190,7 +213,6 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    // ADDED: Import Auth functions
     import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
     import { getDatabase, ref, update, increment, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
@@ -205,11 +227,8 @@
     };
 
     const app = initializeApp(firebaseConfig);
-    
-    // ADDED: Sign in anonymously
     const auth = getAuth(app);
-    signInAnonymously(auth).catch((error) => console.error("Auth Failed:", error));
-
+    signInAnonymously(auth).catch(console.error);
     const db = getDatabase(app);
     const API_URL = 'https://api.todoist.com/sync/v9/completed/get_all';
     
@@ -294,9 +313,7 @@
         document.getElementById('total-tasks').innerText = total.toLocaleString();
         document.getElementById('final-total').innerText = total.toLocaleString();
 
-        const dayMap = {};
-        const weekdayMap = [0,0,0,0,0,0,0];
-        const hourMap = new Array(24).fill(0);
+        const dayMap = {}; const weekdayMap = [0,0,0,0,0,0,0]; const hourMap = new Array(24).fill(0);
         tasks.forEach(t => {
             const d = new Date(t.completed_at);
             dayMap[t.completed_at.split('T')[0]] = (dayMap[t.completed_at.split('T')[0]] || 0) + 1;
@@ -329,40 +346,65 @@
         renderCharts(weekdayMap, hourMap);
     }
 
-    // --- SHARE FUNCTIONALITY ---
-    window.shareSummary = function() {
-        const card = document.getElementById('capture-card');
+    // --- REPORT GENERATION ---
+    window.emailTextReport = function() {
+        const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        const monthCounts = new Array(12).fill(0);
+        STATE.yearTasks.forEach(t => {
+            const d = new Date(t.completed_at);
+            monthCounts[d.getMonth()]++;
+        });
+
+        let text = `My Todoist Wrapped ${STATE.selectedYear} Report\n\n`;
+        text += `✅ Total Tasks: ${document.getElementById('final-total').innerText}\n`;
+        text += `📅 Best Day: ${document.getElementById('final-best-day').innerText}\n`;
+        text += `⚡ Peak Productivity: ${document.getElementById('final-peak-hour').innerText}\n`;
+        text += `📆 Power Weekday: ${document.getElementById('final-weekday').innerText}\n\n`;
+        text += `--- Monthly Breakdown ---\n`;
         
-        // Force opaque background for the snapshot
+        months.forEach((m, i) => {
+            if(monthCounts[i] > 0) {
+                text += `${m}: ${monthCounts[i]} tasks\n`;
+            }
+        });
+
+        text += `\nGenerated via Todoist Analytics\nCheck it out here: https://jackrschumacher.github.io/todoist-stats/`;
+
+        const subject = encodeURIComponent(`My Todoist Stats ${STATE.selectedYear}`);
+        const body = encodeURIComponent(text);
+        window.location.href = `mailto:?subject=${subject}&body=${body}`;
+        
+        showToast("Email draft opened!");
+    }
+
+    window.downloadSnapshot = function() {
+        const card = document.getElementById('capture-card');
         const originalBg = card.style.background;
         card.style.background = "#1a1a1a"; 
-
         html2canvas(card, { scale: 2, backgroundColor: "#1a1a1a" }).then(canvas => {
-            card.style.background = originalBg; // Reset
-            
-            canvas.toBlob(blob => {
-                try {
-                    const item = new ClipboardItem({ "image/png": blob });
-                    navigator.clipboard.write([item]).then(() => {
-                        showToast("Image copied to clipboard!");
-                    }).catch(err => {
-                        // Fallback to download if clipboard fails (e.g. non-HTTPS or unsupported)
-                        downloadImage(canvas);
-                        showToast("Clipboard failed. Downloading image...");
-                    });
-                } catch (e) {
-                    downloadImage(canvas);
-                    showToast("Downloading image...");
-                }
-            });
+            card.style.background = originalBg; 
+            const link = document.createElement('a');
+            link.download = `todoist-wrapped-${STATE.selectedYear}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+            showToast("Image Saved!");
         });
     }
 
-    function downloadImage(canvas) {
-        const link = document.createElement('a');
-        link.download = `todoist-wrapped-${STATE.selectedYear}.png`;
-        link.href = canvas.toDataURL();
-        link.click();
+    window.copySnapshot = function() {
+        const card = document.getElementById('capture-card');
+        const originalBg = card.style.background;
+        card.style.background = "#1a1a1a";
+        html2canvas(card, { scale: 2, backgroundColor: "#1a1a1a" }).then(canvas => {
+            card.style.background = originalBg; 
+            canvas.toBlob(blob => {
+                try {
+                    const item = new ClipboardItem({ "image/png": blob });
+                    navigator.clipboard.write([item]).then(() => { showToast("Image copied to clipboard!"); })
+                    .catch(err => { window.downloadSnapshot(); showToast("Clipboard failed. Downloading instead..."); });
+                } catch (e) { window.downloadSnapshot(); showToast("Downloading image..."); }
+            });
+        });
     }
 
     function showToast(msg) {
