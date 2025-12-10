@@ -12,76 +12,25 @@
 
     <style>
         body { margin: 0; font-family: 'Inter', system-ui, sans-serif; background-color: #000; color: #fff; overflow: hidden; }
-        
-        #stage {
-            width: 100vw; height: 100vh;
-            display: flex; justify-content: center; align-items: center;
-            background: linear-gradient(135deg, #111, #222);
-            position: relative;
-        }
-
-        /* SLIDES */
-        .slide {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            opacity: 0; pointer-events: none; transition: opacity 0.5s ease;
-            text-align: center; padding: 20px; box-sizing: border-box;
-            z-index: 10;
-        }
+        #stage { width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; background: linear-gradient(135deg, #111, #222); position: relative; }
+        .slide { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.5s ease; text-align: center; padding: 20px; box-sizing: border-box; z-index: 10; }
         .slide.active { opacity: 1; pointer-events: auto; }
-
-        /* TYPOGRAPHY */
         h1 { font-size: 3rem; margin-bottom: 20px; font-weight: 800; letter-spacing: -1px; }
         h2 { font-size: 5rem; margin: 10px 0; color: #e44232; text-shadow: 0 0 20px rgba(228, 66, 50, 0.4); }
         p { font-size: 1.5rem; color: #aaa; max-width: 600px; line-height: 1.4; }
         .highlight { color: #e44232; }
-
-        /* INPUTS FOR LOGIN SLIDE */
-        .login-input {
-            padding: 15px; width: 300px; border-radius: 8px; border: 1px solid #444;
-            background: #222; color: white; font-size: 1rem; margin-bottom: 20px;
-            outline: none; transition: border 0.3s; text-align: center;
-        }
+        .login-input { padding: 15px; width: 300px; border-radius: 8px; border: 1px solid #444; background: #222; color: white; font-size: 1rem; margin-bottom: 20px; outline: none; transition: border 0.3s; text-align: center; }
         .login-input:focus { border-color: #e44232; }
-
-        /* YEAR MENU */
-        #year-grid {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); 
-            gap: 15px; width: 100%; max-width: 600px; margin-top: 30px;
-        }
-        .year-btn {
-            background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.1);
-            color: white; padding: 20px; border-radius: 12px; font-size: 1.5rem; font-weight: bold;
-            cursor: pointer; transition: all 0.2s;
-        }
+        #year-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 15px; width: 100%; max-width: 600px; margin-top: 30px; }
+        .year-btn { background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.1); color: white; padding: 20px; border-radius: 12px; font-size: 1.5rem; font-weight: bold; cursor: pointer; transition: all 0.2s; }
         .year-btn:hover { background: #e44232; border-color: #e44232; transform: scale(1.05); }
         .year-count { font-size: 0.8rem; font-weight: normal; opacity: 0.7; display: block; margin-top: 5px; }
-
-        /* CONTROLS */
-        .controls {
-            position: absolute; bottom: 30px; left: 0; width: 100%;
-            display: flex; justify-content: center; gap: 20px; z-index: 100;
-            opacity: 0; pointer-events: none; transition: opacity 0.3s;
-        }
+        .controls { position: absolute; bottom: 30px; left: 0; width: 100%; display: flex; justify-content: center; gap: 20px; z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
         .controls.visible { opacity: 1; pointer-events: auto; }
-        
-        .nav-btn {
-            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
-            color: white; padding: 10px 20px; border-radius: 30px; cursor: pointer;
-            backdrop-filter: blur(5px); transition: 0.2s;
-        }
+        .nav-btn { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 10px 20px; border-radius: 30px; cursor: pointer; backdrop-filter: blur(5px); transition: 0.2s; }
         .nav-btn:hover { background: rgba(255,255,255,0.2); }
-
-        /* ACTION BUTTONS GRID */
-        .action-grid {
-            display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 30px;
-        }
-        .action-btn {
-            display: flex; align-items: center; gap: 8px;
-            padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer;
-            font-weight: bold; font-size: 14px; transition: 0.2s;
-            text-decoration: none; color: white;
-        }
+        .action-grid { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 30px; }
+        .action-btn { display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; font-size: 14px; transition: 0.2s; text-decoration: none; color: white; }
         .btn-save { background: white; color: black; }
         .btn-save:hover { background: #ddd; }
         .btn-email { background: #333; color: white; }
@@ -90,40 +39,16 @@
         .btn-copy:hover { background: #c0392b; }
         .btn-dash { border: 1px solid #555; background: transparent; color: #888; }
         .btn-dash:hover { border-color: #888; color: white; }
-
-        /* LOADING */
-        .spinner {
-            width: 50px; height: 50px; border: 5px solid rgba(255,255,255,0.1);
-            border-top: 5px solid #e44232; border-radius: 50%;
-            animation: spin 1s linear infinite; margin-bottom: 20px;
-        }
+        .spinner { width: 50px; height: 50px; border: 5px solid rgba(255,255,255,0.1); border-top: 5px solid #e44232; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-        /* PROGRESS BAR */
-        .progress-container {
-            position: absolute; top: 10px; left: 10px; right: 10px;
-            display: flex; gap: 5px; z-index: 100; opacity: 0; transition: opacity 0.3s;
-        }
+        .progress-container { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; gap: 5px; z-index: 100; opacity: 0; transition: opacity 0.3s; }
         .progress-container.visible { opacity: 1; }
         .progress-pill { flex: 1; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; overflow: hidden; }
         .progress-fill { height: 100%; width: 0%; background: #fff; transition: width 0.3s; }
         .progress-pill.active .progress-fill { width: 100%; }
-
         .chart-box { width: 100%; max-width: 600px; height: 300px; margin: 20px auto; }
-        
-        .summary-card {
-            background: #1a1a1a; padding: 40px; border-radius: 20px;
-            border: 2px solid #333; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-            max-width: 500px; width: 100%;
-        }
-
-        /* TOAST NOTIFICATION */
-        #toast {
-            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-            background: #e44232; color: white; padding: 10px 20px; border-radius: 30px;
-            font-weight: bold; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-            opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 2000;
-        }
+        .summary-card { background: #1a1a1a; padding: 40px; border-radius: 20px; border: 2px solid #333; box-shadow: 0 10px 40px rgba(0,0,0,0.5); max-width: 500px; width: 100%; }
+        #toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #e44232; color: white; padding: 10px 20px; border-radius: 30px; font-weight: bold; box-shadow: 0 5px 15px rgba(0,0,0,0.3); opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 2000; }
         #toast.show { opacity: 1; }
     </style>
 </head>
@@ -142,89 +67,37 @@
             <br>
             <button class="nav-btn" style="background: #e44232; border:none;" onclick="window.handleLogin()">Start Experience</button>
         </div>
-        <p style="font-size: 0.9rem; margin-top: 20px; opacity: 0.6;">
-            (Settings > Integrations > Developer)
-        </p>
+        <p style="font-size: 0.9rem; margin-top: 20px; opacity: 0.6;">(Settings > Integrations > Developer)</p>
     </div>
 
-    <div class="slide active" id="slide-0">
-        <div class="spinner"></div>
-        <h1>Preparing Your History...</h1>
-        <p id="loading-text">Fetching tasks...</p>
-    </div>
-
-    <div class="slide" id="slide-1">
-        <h1>Select a Year</h1>
-        <p>Which chapter of your life do you want to revisit?</p>
-        <div id="year-grid"></div>
-    </div>
-
-    <div class="slide" id="slide-2">
-        <h1><span id="display-year" class="highlight">202X</span> Wrapped</h1>
-        <p>Let's see what you accomplished that year.</p>
-    </div>
-
-    <div class="slide" id="slide-3">
-        <p>In <span class="year-label"></span>, you completed</p>
-        <h2 id="total-tasks">0</h2>
-        <p>Tasks</p>
-    </div>
-
-    <div class="slide" id="slide-4">
-        <p>Your most productive day of <span class="year-label"></span> was</p>
-        <h1 id="best-day-date" class="highlight">...</h1>
-        <p><span id="best-day-count" style="font-weight:bold; color:white;">0</span> tasks completed.</p>
-    </div>
-
-    <div class="slide" id="slide-5">
-        <p>Your favorite day of the week was</p>
-        <h1 id="best-weekday" class="highlight">...</h1>
-        <div class="chart-box"><canvas id="week-chart"></canvas></div>
-    </div>
-
-    <div class="slide" id="slide-6">
-        <p>You were most active around</p>
-        <h1 id="best-hour" class="highlight">...</h1>
-        <div class="chart-box"><canvas id="hour-chart"></canvas></div>
-    </div>
-
+    <div class="slide active" id="slide-0"><div class="spinner"></div><h1>Preparing Your History...</h1><p id="loading-text">Fetching tasks...</p></div>
+    <div class="slide" id="slide-1"><h1>Select a Year</h1><p>Which chapter of your life do you want to revisit?</p><div id="year-grid"></div></div>
+    <div class="slide" id="slide-2"><h1><span id="display-year" class="highlight">202X</span> Wrapped</h1><p>Let's see what you accomplished that year.</p></div>
+    <div class="slide" id="slide-3"><p>In <span class="year-label"></span>, you completed</p><h2 id="total-tasks">0</h2><p>Tasks</p></div>
+    <div class="slide" id="slide-4"><p>Your most productive day of <span class="year-label"></span> was</p><h1 id="best-day-date" class="highlight">...</h1><p><span id="best-day-count" style="font-weight:bold; color:white;">0</span> tasks completed.</p></div>
+    <div class="slide" id="slide-5"><p>Your favorite day of the week was</p><h1 id="best-weekday" class="highlight">...</h1><div class="chart-box"><canvas id="week-chart"></canvas></div></div>
+    <div class="slide" id="slide-6"><p>You were most active around</p><h1 id="best-hour" class="highlight">...</h1><div class="chart-box"><canvas id="hour-chart"></canvas></div></div>
+    
     <div class="slide" id="slide-7">
         <div id="capture-card" class="summary-card">
-            <h3 style="color:#e44232; margin:0; text-transform:uppercase; letter-spacing:2px; margin-bottom: 5px;">
-                <i class="fa-solid fa-check-double"></i> Todoist Wrapped <span class="year-label"></span>
-            </h3>
-            
+            <h3 style="color:#e44232; margin:0; text-transform:uppercase; letter-spacing:2px; margin-bottom: 5px;"><i class="fa-solid fa-check-double"></i> Todoist Wrapped <span class="year-label"></span></h3>
             <div style="font-size: 4.5rem; font-weight: 800; margin: 10px 0; line-height:1;" id="final-total">0</div>
             <div style="color:#888; margin-bottom: 25px; letter-spacing: 1px; font-size: 0.9rem;">TASKS COMPLETED</div>
-            
             <div style="background:rgba(255,255,255,0.05); border-radius:12px; padding:20px; display:grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: left;">
                 <div><div style="color:#888; font-size:0.7rem; font-weight:700;">BEST DAY</div><div id="final-best-day" style="font-weight:bold; font-size:1.1rem;">-</div></div>
                 <div><div style="color:#888; font-size:0.7rem; font-weight:700;">PEAK HOUR</div><div id="final-peak-hour" style="font-weight:bold; font-size:1.1rem;">-</div></div>
                 <div><div style="color:#888; font-size:0.7rem; font-weight:700;">DAILY AVG</div><div id="final-avg" style="font-weight:bold; font-size:1.1rem;">-</div></div>
                 <div><div style="color:#888; font-size:0.7rem; font-weight:700;">POWER DAY</div><div id="final-weekday" style="font-weight:bold; font-size:1.1rem;">-</div></div>
             </div>
-            
-            <div style="margin-top:20px; border-top:1px solid #333; padding-top:15px; font-size:0.7rem; color:#666; text-align:center;">
-                Global Wrappeds Generated: <span id="final-global-wrappeds" style="color:#e44232; font-weight:bold;">...</span>
-            </div>
+            <div style="margin-top:20px; border-top:1px solid #333; padding-top:15px; font-size:0.7rem; color:#666; text-align:center;">Global Wrappeds Generated: <span id="final-global-wrappeds" style="color:#e44232; font-weight:bold;">...</span></div>
         </div>
-
         <div class="action-grid">
-            <button class="action-btn btn-save" onclick="window.downloadSnapshot()">
-                <i class="fa-solid fa-download"></i> Save Image
-            </button>
-            <button class="action-btn btn-email" onclick="window.emailTextReport()">
-                <i class="fa-solid fa-envelope"></i> Email Report
-            </button>
-            <button class="action-btn btn-copy" onclick="window.copySnapshot()">
-                <i class="fa-solid fa-copy"></i> Copy Img
-            </button>
-            <a href="index.html" class="action-btn btn-dash">
-                <i class="fa-solid fa-house"></i> Home
-            </a>
+            <button class="action-btn btn-save" onclick="window.downloadSnapshot()"><i class="fa-solid fa-download"></i> Save Image</button>
+            <button class="action-btn btn-email" onclick="window.emailTextReport()"><i class="fa-solid fa-envelope"></i> Email Report</button>
+            <button class="action-btn btn-copy" onclick="window.copySnapshot()"><i class="fa-solid fa-copy"></i> Copy Img</button>
+            <a href="index.html" class="action-btn btn-dash"><i class="fa-solid fa-house"></i> Home</a>
         </div>
     </div>
-
 </div>
 
 <div class="controls" id="controls">
@@ -249,7 +122,7 @@
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
-    signInAnonymously(auth).catch(console.error);
+    signInAnonymously(auth).catch((error) => console.error("Auth Failed:", error));
     const db = getDatabase(app);
     const API_URL = 'https://api.todoist.com/sync/v9/completed/get_all';
     
@@ -258,7 +131,6 @@
     };
     const SLIDES_COUNT = 8; 
 
-    // FIREBASE LISTENER
     const statsRef = ref(db, 'global_stats');
     onValue(statsRef, (snapshot) => {
         const data = snapshot.val();
@@ -267,16 +139,12 @@
         }
     });
 
-    // INIT
     window.onload = async () => {
         setupProgressBar();
         const token = localStorage.getItem('todoist_token');
-        
         if(token) {
-            // Already logged in
             await fetchAllData(token);
         } else {
-            // Show Login Slide (Hide Loader)
             document.getElementById('slide-0').classList.remove('active');
             document.getElementById('slide-login').classList.add('active');
         }
@@ -284,47 +152,75 @@
 
     window.handleLogin = function() {
         const inputKey = document.getElementById('login-key').value.trim();
-        if(!inputKey) {
-            alert("Please paste your API token.");
-            return;
-        }
+        if(!inputKey) { alert("Please paste your API token."); return; }
         localStorage.setItem('todoist_token', inputKey);
-        
-        // Switch slides to loading
         document.getElementById('slide-login').classList.remove('active');
         document.getElementById('slide-0').classList.add('active');
-        
         fetchAllData(inputKey);
     }
 
+    // TIMEZONE HELPER
+    function getLocalISODate(dateStr) {
+        const d = new Date(dateStr); 
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
     async function fetchAllData(token) {
+        // CACHE CHECK
+        const cached = localStorage.getItem('todoist_task_cache');
+        if(cached) {
+            try {
+                STATE.allTasks = JSON.parse(cached);
+                processYears();
+                window.goToSlide(1);
+                // Background update (silent)
+                updateCache(token);
+                return;
+            } catch(e) {}
+        }
+
+        updateCache(token);
+    }
+
+    async function updateCache(token) {
         let offset = 0; let hasMore = true;
+        let newTasks = [];
         try {
             while(hasMore) {
                 const res = await fetch(`${API_URL}?limit=200&offset=${offset}`, { headers: { 'Authorization': `Bearer ${token}` } });
-                if(!res.ok) throw new Error("API Error or Invalid Token");
+                if(!res.ok) throw new Error("API Error");
                 const data = await res.json();
                 const items = data.items || [];
                 if(items.length > 0) {
-                    STATE.allTasks = STATE.allTasks.concat(items);
+                    newTasks = newTasks.concat(items);
                     offset += 200;
-                    document.getElementById('loading-text').innerText = `Found ${STATE.allTasks.length} tasks...`;
+                    document.getElementById('loading-text').innerText = `Found ${newTasks.length} tasks...`;
                 } else { hasMore = false; }
             }
+            STATE.allTasks = newTasks;
+            
+            // OPTIMIZE CACHE
+            const minimalData = newTasks.map(t => ({ id: t.id, completed_at: t.completed_at }));
+            localStorage.setItem('todoist_task_cache', JSON.stringify(minimalData));
+            
             processYears();
-            window.goToSlide(1); 
+            if(STATE.currentSlide === 0) window.goToSlide(1); 
         } catch (e) {
-            alert("Error: " + e.message + ". Check your token.");
-            // Go back to login if failed
-            document.getElementById('slide-0').classList.remove('active');
-            document.getElementById('slide-login').classList.add('active');
+            if(STATE.allTasks.length === 0) { // Only error if no cache shown
+                alert("Error: " + e.message);
+                document.getElementById('slide-0').classList.remove('active');
+                document.getElementById('slide-login').classList.add('active');
+            }
         }
     }
 
     function processYears() {
         STATE.yearsMap = {};
         STATE.allTasks.forEach(t => {
-            const y = t.completed_at.substring(0, 4);
+            const y = getLocalISODate(t.completed_at).substring(0, 4);
             STATE.yearsMap[y] = (STATE.yearsMap[y] || 0) + 1;
         });
         const grid = document.getElementById('year-grid');
@@ -341,7 +237,8 @@
 
     window.startYear = function(year) {
         STATE.selectedYear = year;
-        STATE.yearTasks = STATE.allTasks.filter(t => t.completed_at.startsWith(year));
+        // Filter by LOCAL Year
+        STATE.yearTasks = STATE.allTasks.filter(t => getLocalISODate(t.completed_at).startsWith(year));
         
         update(ref(db, 'global_stats'), { wrappeds_generated: increment(1) }).catch(console.error);
 
@@ -364,7 +261,9 @@
         const dayMap = {}; const weekdayMap = [0,0,0,0,0,0,0]; const hourMap = new Array(24).fill(0);
         tasks.forEach(t => {
             const d = new Date(t.completed_at);
-            dayMap[t.completed_at.split('T')[0]] = (dayMap[t.completed_at.split('T')[0]] || 0) + 1;
+            // Use LOCAL Date Key
+            const dateKey = getLocalISODate(t.completed_at);
+            dayMap[dateKey] = (dayMap[dateKey] || 0) + 1;
             weekdayMap[d.getDay()]++;
             hourMap[d.getHours()]++;
         });
@@ -372,7 +271,10 @@
         let maxVal = 0, bestDate = "";
         for(const [d,c] of Object.entries(dayMap)) { if(c > maxVal) { maxVal = c; bestDate = d; } }
         
-        const prettyDate = new Date(bestDate + "T12:00:00").toLocaleDateString(undefined, {month:'long', day:'numeric'});
+        // Ensure best date string parses correctly
+        const [y, m, d] = bestDate.split('-').map(Number);
+        const prettyDate = new Date(y, m-1, d).toLocaleDateString(undefined, {month:'long', day:'numeric'});
+        
         document.getElementById('best-day-date').innerText = prettyDate;
         document.getElementById('best-day-count').innerText = maxVal;
         document.getElementById('final-best-day').innerText = prettyDate;
@@ -394,7 +296,6 @@
         renderCharts(weekdayMap, hourMap);
     }
 
-    // --- REPORT GENERATION ---
     window.emailTextReport = function() {
         const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
         const monthCounts = new Array(12).fill(0);
@@ -409,19 +310,12 @@
         text += `⚡ Peak Productivity: ${document.getElementById('final-peak-hour').innerText}\n`;
         text += `📆 Power Weekday: ${document.getElementById('final-weekday').innerText}\n\n`;
         text += `--- Monthly Breakdown ---\n`;
-        
-        months.forEach((m, i) => {
-            if(monthCounts[i] > 0) {
-                text += `${m}: ${monthCounts[i]} tasks\n`;
-            }
-        });
-
+        months.forEach((m, i) => { if(monthCounts[i] > 0) text += `${m}: ${monthCounts[i]} tasks\n`; });
         text += `\nGenerated via Todoist Analytics\nCheck it out here: https://jackrschumacher.github.io/todoist-stats/`;
 
         const subject = encodeURIComponent(`My Todoist Stats ${STATE.selectedYear}`);
         const body = encodeURIComponent(text);
         window.location.href = `mailto:?subject=${subject}&body=${body}`;
-        
         showToast("Email draft opened!");
     }
 
@@ -462,7 +356,6 @@
         setTimeout(() => toast.classList.remove('show'), 3000);
     }
 
-    // --- NAVIGATION & VISUALS ---
     window.goToSlide = function(idx) {
         document.querySelector(`.slide.active`).classList.remove('active');
         STATE.currentSlide = idx;
