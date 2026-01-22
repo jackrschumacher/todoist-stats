@@ -408,12 +408,63 @@
     }
 
     function renderTimeline() {
+        if (STATE.filteredTasks.length === 0) return;
+
+        // Force range from first task date to TODAY
+        const dates = STATE.filteredTasks.map(t => new Date(t.completed_at));
+        let minDate = new Date(Math.min(...dates));
+        let maxDate = new Date(); // Always include today
+        
         const map = {};
-        STATE.filteredTasks.forEach(t => {
-            const k = STATE.filterType === 'DAY' ? t.completed_at.substring(11, 13) + ":00" : t.completed_at.substring(0, 10);
-            map[k] = (map[k] || 0) + 1;
-        });
-        const labels = Object.keys(map).sort();
+        const labels = [];
+        
+        if (STATE.filterType === 'ALL') {
+            // MONTHLY VIEW: generate all months from minDate to maxDate
+            minDate.setDate(1); 
+            let curr = new Date(minDate);
+            while (curr <= maxDate) {
+                const k = `${curr.getFullYear()}-${String(curr.getMonth()+1).padStart(2,'0')}`;
+                labels.push(k);
+                map[k] = 0;
+                curr.setMonth(curr.getMonth() + 1);
+            }
+            STATE.filteredTasks.forEach(t => {
+                const k = t.completed_at.substring(0, 7);
+                if (map[k] !== undefined) map[k]++;
+            });
+
+        } else if (STATE.filterType === 'MONTH') {
+            // DAILY VIEW: generate all days in the selected month
+            const [y, m] = STATE.filterValue.split('-');
+            minDate = new Date(y, m - 1, 1);
+            maxDate = new Date(y, m, 0); 
+            
+            let curr = new Date(minDate);
+            while (curr <= maxDate) {
+                const k = `${curr.getFullYear()}-${String(curr.getMonth()+1).padStart(2,'0')}-${String(curr.getDate()).padStart(2,'0')}`;
+                labels.push(k);
+                map[k] = 0;
+                curr.setDate(curr.getDate() + 1);
+            }
+            STATE.filteredTasks.forEach(t => {
+                const k = t.completed_at.substring(0, 10);
+                if (map[k] !== undefined) map[k]++;
+            });
+            
+        } else {
+            // HOURLY VIEW
+            for (let i=0; i<24; i++) {
+                const k = `${String(i).padStart(2,'0')}:00`;
+                labels.push(k);
+                map[k] = 0;
+            }
+            STATE.filteredTasks.forEach(t => {
+                const h = new Date(t.completed_at).getHours();
+                const k = `${String(h).padStart(2,'0')}:00`;
+                map[k]++;
+            });
+        }
+
         drawChart('chart-timeline', 'bar', labels, labels.map(l => map[l]));
     }
 
