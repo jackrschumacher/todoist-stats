@@ -209,7 +209,17 @@
     });
 
     window.onload = () => {
-        if(localStorage.getItem('theme') === 'dark') window.applyTheme('dark');
+        // Auto-Theme Logic
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme) {
+            if (savedTheme === 'dark') window.applyTheme('dark');
+        } else {
+            // Check System Preference
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                window.applyTheme('dark');
+            }
+        }
+
         const projCache = localStorage.getItem('todoist_projects_cache');
         if (projCache) STATE.projectMap = JSON.parse(projCache);
     };
