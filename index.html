@@ -214,7 +214,6 @@
         if (savedTheme) {
             if (savedTheme === 'dark') window.applyTheme('dark');
         } else {
-            // Check System Preference
             if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
                 window.applyTheme('dark');
             }
@@ -235,7 +234,7 @@
                 processData();
                 document.getElementById('view-login').classList.add('hidden');
                 document.getElementById('view-dashboard').classList.remove('hidden');
-                // Try to sync stats in background if auth is ready, else wait
+                
                 if(STATE.isAuthReady) calculateDeltas();
                 else setTimeout(() => { if(STATE.isAuthReady) calculateDeltas(); }, 2000);
                 return;
@@ -247,7 +246,6 @@
         let offset = 0, hasMore = true;
 
         try {
-            // Fetch Projects
             const projRes = await fetch('https://api.todoist.com/sync/v9/sync', {
                 method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sync_token: '*', resource_types: ['projects'] })
@@ -270,7 +268,6 @@
             localStorage.setItem('todoist_task_cache', JSON.stringify(STATE.allTasks));
             processData();
             
-            // Wait slightly to ensure Auth is ready before writing
             if (STATE.isAuthReady) calculateDeltas();
             else setTimeout(() => calculateDeltas(), 1000);
 
@@ -287,30 +284,47 @@
         }
 
         const lastStr = localStorage.getItem('todoist_last_sync_stats');
-        const last = lastStr ? JSON.parse(lastStr) : { tasks: 0, projects: 0 };
+        const last = lastStr ? JSON.parse(lastStr) : { tasks: 0, projects: 0, months: {} };
+        
         const currentTasks = STATE.allTasks.length;
         const currentProjects = Object.keys(STATE.projectMap).length;
 
-        console.log(`Checking Sync: Last Projects: ${last.projects}, Current: ${currentProjects}`);
+        const currentMonths = {};
+        STATE.allTasks.forEach(t => {
+            const m = t.completed_at.substring(0, 7);
+            currentMonths[m] = (currentMonths[m] || 0) + 1;
+        });
 
-        if (currentTasks > last.tasks || currentProjects > last.projects) {
-            const updates = {};
-            if (currentTasks > last.tasks) updates['global_stats/tasks_processed'] = increment(currentTasks - last.tasks);
-            if (currentProjects > last.projects) updates['global_stats/projects_processed'] = increment(currentProjects - last.projects);
-            
-            const months = {};
-            STATE.allTasks.forEach(t => {
-                const m = t.completed_at.substring(0, 7);
-                months[m] = (months[m] || 0) + 1;
-            });
-            for(const [m, v] of Object.entries(months)) {
-                if(v > 0) updates[`community_monthly/${m}`] = increment(1); 
+        const updates = {};
+        let hasUpdates = false;
+
+        if (currentTasks > last.tasks) {
+            updates['global_stats/tasks_processed'] = increment(currentTasks - last.tasks);
+            hasUpdates = true;
+        }
+        if (currentProjects > last.projects) {
+            updates['global_stats/projects_processed'] = increment(currentProjects - last.projects);
+            hasUpdates = true;
+        }
+
+        for (const [month, count] of Object.entries(currentMonths)) {
+            const lastCount = last.months && last.months[month] ? last.months[month] : 0;
+            const diff = count - lastCount;
+            if (diff > 0) {
+                updates[`community_monthly/${month}`] = increment(diff);
+                hasUpdates = true;
             }
+        }
 
+        if (hasUpdates) {
             update(ref(db), updates)
                 .then(() => {
                     console.log("✅ Stats synced to Firebase!");
-                    localStorage.setItem('todoist_last_sync_stats', JSON.stringify({ tasks: currentTasks, projects: currentProjects }));
+                    localStorage.setItem('todoist_last_sync_stats', JSON.stringify({ 
+                        tasks: currentTasks, 
+                        projects: currentProjects,
+                        months: currentMonths 
+                    }));
                 })
                 .catch((e) => {
                     console.error("❌ Stats sync failed:", e);
@@ -320,7 +334,6 @@
         }
     }
 
-    // Emergency manual trigger
     window.forceProjectSync = function() {
         localStorage.removeItem('todoist_last_sync_stats');
         calculateDeltas();
