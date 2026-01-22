@@ -63,6 +63,13 @@
         .modal-content { background:var(--card-bg); width:95%; max-width:800px; border-radius:12px; padding:25px; box-shadow:0 10px 25px rgba(0,0,0,0.2); position:relative; max-height: 90vh; overflow-y: auto; }
         #toast { position:fixed; bottom:30px; left:50%; transform:translateX(-50%) translateY(20px); background:#333; color:white; padding:12px 24px; border-radius:30px; font-weight:600; box-shadow:0 5px 15px rgba(0,0,0,0.2); opacity:0; pointer-events:none; transition:opacity 0.3s, transform 0.3s; z-index:3000; }
         #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+        /* TASK LIST STYLES */
+        .task-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+        .task-item:last-child { border-bottom: none; }
+        .task-content { flex: 1; margin-right: 15px; line-height: 1.4; }
+        .task-project { font-size: 10px; background: var(--highlight); color: var(--primary); padding: 3px 8px; border-radius: 4px; font-weight: bold; white-space: nowrap; }
+        #tasks-list { max-height: 400px; overflow-y: auto; padding-right: 5px; scrollbar-width: thin; }
     </style>
 </head>
 <body>
@@ -93,7 +100,6 @@
             </div>
         </div>
 
-        <!-- NEW: Global Activity Chart -->
         <div class="card" style="margin-bottom: 20px; padding: 15px;">
             <h3 style="margin-top:0; font-size: 14px; color: var(--text-muted); text-transform:uppercase; margin-bottom: 10px;">Global Growth Trend</h3>
             <div class="chart-container" style="height: 180px;"><canvas id="comm-chart"></canvas></div>
@@ -187,6 +193,14 @@
                     <div class="chart-container" style="height: 180px;"><canvas id="chart-hours"></canvas></div>
                 </div>
             </div>
+
+            <div id="tasks-detail-card" class="card hidden">
+                <div class="flex between" style="margin-bottom: 15px;">
+                    <h3 id="tasks-detail-title" style="margin:0; font-size: 16px; color: var(--primary);">Daily Tasks</h3>
+                    <span id="tasks-count-badge" style="font-size: 11px; background: var(--border); padding: 2px 8px; border-radius: 10px;">0 tasks</span>
+                </div>
+                <div id="tasks-list"></div>
+            </div>
         </div>
     </div>
 </div>
@@ -213,13 +227,12 @@
     const API_URL = 'https://api.todoist.com/sync/v9/completed/get_all';
     
     let STATE = {
-        allTasks: [], filteredTasks: [], taskMap: {}, filterType: 'ALL', filterValue: null, charts: {}, minDate: new Date(), maxDate: new Date()
+        allTasks: [], filteredTasks: [], taskMap: {}, projectMap: {}, filterType: 'ALL', filterValue: null, charts: {}, minDate: new Date(), maxDate: new Date()
     };
 
     const statsRef = ref(db, 'global_stats');
     const monthlyRef = ref(db, 'community_monthly');
 
-    // Listener for Global Stats
     onValue(statsRef, (snapshot) => {
         const data = snapshot.val();
         if (!data) return;
@@ -242,12 +255,9 @@
         }
     });
 
-    // NEW: Listener for Community Monthly Trend
     onValue(monthlyRef, (snapshot) => {
         const data = snapshot.val();
         if (!data) return;
-        
-        // Sort keys (YYYY-MM) and prepare labels/data
         const sortedKeys = Object.keys(data).sort();
         const labels = sortedKeys.map(key => {
             const [y, m] = key.split('-');
@@ -255,7 +265,6 @@
             return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
         });
         const values = sortedKeys.map(key => data[key]);
-        
         drawCommunityChart('comm-chart', labels, values);
     });
 
@@ -264,9 +273,7 @@
         const isDark = document.body.getAttribute('data-theme') === 'dark';
         const textColor = isDark ? '#bdc3c7' : '#2c3e50';
         const gridColor = isDark ? '#404040' : '#eaeaea';
-        
         if(STATE.charts[id]) STATE.charts[id].destroy();
-        
         STATE.charts[id] = new Chart(ctx, {
             type: 'line',
             data: {
@@ -297,6 +304,10 @@
 
     window.onload = () => {
         if(localStorage.getItem('theme') === 'dark') window.applyTheme('dark');
+        
+        const cachedProjects = localStorage.getItem('todoist_projects_cache');
+        if (cachedProjects) STATE.projectMap = JSON.parse(cachedProjects);
+
         const savedToken = localStorage.getItem('todoist_token');
         if (savedToken) {
             document.getElementById('api-token').value = savedToken;
@@ -313,7 +324,6 @@
         localStorage.setItem('theme', theme);
         document.getElementById('theme-icon').className = theme === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
         if(STATE.filteredTasks.length > 0) renderCharts();
-        // Redraw community chart if it exists
         if(STATE.charts['comm-chart']) {
             const chart = STATE.charts['comm-chart'];
             const textColor = theme === 'dark' ? '#bdc3c7' : '#2c3e50';
@@ -372,6 +382,17 @@
         let hasMore = true;
 
         try {
+            // Fetch Projects for mapping
+            const projRes = await fetch('https://api.todoist.com/sync/v9/sync', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sync_token: '*', resource_types: ['projects'] })
+            });
+            const projData = await projRes.json();
+            projData.projects.forEach(p => { STATE.projectMap[p.id] = p.name; });
+            localStorage.setItem('todoist_projects_cache', JSON.stringify(STATE.projectMap));
+
+            // Fetch History
             while(hasMore) {
                 const res = await fetch(`${API_URL}?limit=200&offset=${offset}`, { headers: { 'Authorization': `Bearer ${token}` } });
                 if(res.status === 429) { await new Promise(r => setTimeout(r, 4000)); continue; }
@@ -513,7 +534,7 @@
             STATE.filteredTasks = STATE.allTasks.filter(t => getLocalISODate(t.completed_at) === value); 
             document.getElementById('filter-badge').innerText = value; document.getElementById('btn-reset').classList.remove('hidden'); 
         }
-        updateStats(); renderFullHeatmap(); renderCharts();
+        updateStats(); renderFullHeatmap(); renderCharts(); renderTaskList();
     }
 
     function updateStats() {
@@ -542,6 +563,38 @@
         drawChart('chart-timeline', 'bar', timelineLabels, timelineData);
         drawChart('chart-week', 'bar', ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], weekData);
         drawChart('chart-hours', 'line', [...Array(24).keys()].map(x=>x), hourData);
+    }
+
+    function renderTaskList() {
+        const container = document.getElementById('tasks-detail-card');
+        const list = document.getElementById('tasks-list');
+        if (STATE.filterType !== 'DAY') { container.classList.add('hidden'); return; }
+
+        container.classList.remove('hidden');
+        document.getElementById('tasks-detail-title').innerText = `Tasks on ${STATE.filterValue}`;
+        document.getElementById('tasks-count-badge').innerText = `${STATE.filteredTasks.length} tasks`;
+        list.innerHTML = '';
+
+        if (STATE.filteredTasks.length === 0) {
+            list.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px;">No tasks found.</div>';
+            return;
+        }
+
+        const sortedTasks = [...STATE.filteredTasks].sort((a, b) => new Date(a.completed_at) - new Date(b.completed_at));
+        sortedTasks.forEach(task => {
+            const item = document.createElement('div');
+            item.className = 'task-item';
+            const projectName = STATE.projectMap[task.project_id] || "Unknown Project";
+            const time = new Date(task.completed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            item.innerHTML = `
+                <div class="task-content">
+                    <span style="color: var(--text-muted); font-size: 10px; margin-right: 5px;">${time}</span>
+                    ${task.content}
+                </div>
+                <div class="task-project">${projectName}</div>
+            `;
+            list.appendChild(item);
+        });
     }
 
     function drawChart(id, type, labels, data) {
@@ -577,6 +630,7 @@
         localStorage.removeItem('todoist_token'); 
         localStorage.removeItem('todoist_task_cache'); 
         localStorage.removeItem('todoist_last_sync_stats'); 
+        localStorage.removeItem('todoist_projects_cache');
         location.reload(); 
     }
 </script>
