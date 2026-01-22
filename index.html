@@ -209,7 +209,6 @@
     });
 
     window.onload = () => {
-        // Auto-Theme Logic
         const savedTheme = localStorage.getItem('theme');
         if (savedTheme) {
             if (savedTheme === 'dark') window.applyTheme('dark');
@@ -218,7 +217,6 @@
                 window.applyTheme('dark');
             }
         }
-
         const projCache = localStorage.getItem('todoist_projects_cache');
         if (projCache) STATE.projectMap = JSON.parse(projCache);
     };
@@ -234,7 +232,6 @@
                 processData();
                 document.getElementById('view-login').classList.add('hidden');
                 document.getElementById('view-dashboard').classList.remove('hidden');
-                
                 if(STATE.isAuthReady) calculateDeltas();
                 else setTimeout(() => { if(STATE.isAuthReady) calculateDeltas(); }, 2000);
                 return;
@@ -285,7 +282,6 @@
 
         const lastStr = localStorage.getItem('todoist_last_sync_stats');
         const last = lastStr ? JSON.parse(lastStr) : { tasks: 0, projects: 0, months: {} };
-        
         const currentTasks = STATE.allTasks.length;
         const currentProjects = Object.keys(STATE.projectMap).length;
 
@@ -346,7 +342,16 @@
             STATE.taskMap[d] = (STATE.taskMap[d] || 0) + 1;
         });
         renderHeatmap();
-        window.resetFilter();
+
+        // DEFAULT TO CURRENT MONTH + SCROLL
+        const now = new Date();
+        const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+        window.setFilter('MONTH', currentMonthKey);
+        
+        setTimeout(() => {
+             const el = document.getElementById('heatmap-scroll-area');
+             if(el) el.scrollTop = el.scrollHeight;
+        }, 100);
     }
 
     function renderHeatmap() {
@@ -408,63 +413,53 @@
     }
 
     function renderTimeline() {
-        if (STATE.filteredTasks.length === 0) return;
-
-        // Force range from first task date to TODAY
-        const dates = STATE.filteredTasks.map(t => new Date(t.completed_at));
-        let minDate = new Date(Math.min(...dates));
-        let maxDate = new Date(); // Always include today
-        
-        const map = {};
-        const labels = [];
+        let labels = [], map = {};
         
         if (STATE.filterType === 'ALL') {
-            // MONTHLY VIEW: generate all months from minDate to maxDate
-            minDate.setDate(1); 
-            let curr = new Date(minDate);
-            while (curr <= maxDate) {
+             // Show full history range
+             const dates = STATE.allTasks.map(t => new Date(t.completed_at));
+             if(dates.length === 0) return;
+             let curr = new Date(Math.min(...dates));
+             curr.setDate(1); 
+             const end = new Date(); // Always extend to Today
+             while (curr <= end) {
                 const k = `${curr.getFullYear()}-${String(curr.getMonth()+1).padStart(2,'0')}`;
-                labels.push(k);
-                map[k] = 0;
+                labels.push(k); map[k] = 0;
                 curr.setMonth(curr.getMonth() + 1);
-            }
-            STATE.filteredTasks.forEach(t => {
+             }
+             STATE.filteredTasks.forEach(t => {
                 const k = t.completed_at.substring(0, 7);
-                if (map[k] !== undefined) map[k]++;
-            });
+                if(map[k] !== undefined) map[k]++;
+             });
+             document.getElementById('chart-title-timeline').innerText = "History by Month";
 
         } else if (STATE.filterType === 'MONTH') {
-            // DAILY VIEW: generate all days in the selected month
-            const [y, m] = STATE.filterValue.split('-');
-            minDate = new Date(y, m - 1, 1);
-            maxDate = new Date(y, m, 0); 
-            
-            let curr = new Date(minDate);
-            while (curr <= maxDate) {
-                const k = `${curr.getFullYear()}-${String(curr.getMonth()+1).padStart(2,'0')}-${String(curr.getDate()).padStart(2,'0')}`;
-                labels.push(k);
-                map[k] = 0;
-                curr.setDate(curr.getDate() + 1);
-            }
-            STATE.filteredTasks.forEach(t => {
+             // Show all days in the specific month
+             const [y, m] = STATE.filterValue.split('-');
+             const daysInMonth = new Date(y, m, 0).getDate();
+             for(let d=1; d<=daysInMonth; d++) {
+                const k = `${y}-${m}-${String(d).padStart(2,'0')}`;
+                labels.push(k); map[k] = 0;
+             }
+             STATE.filteredTasks.forEach(t => {
                 const k = t.completed_at.substring(0, 10);
-                if (map[k] !== undefined) map[k]++;
-            });
-            
+                if(map[k] !== undefined) map[k]++;
+             });
+             document.getElementById('chart-title-timeline').innerText = "Daily Breakdown";
+
         } else {
-            // HOURLY VIEW
-            for (let i=0; i<24; i++) {
+             // Hourly View (Day selected)
+             for(let i=0; i<24; i++) {
                 const k = `${String(i).padStart(2,'0')}:00`;
-                labels.push(k);
-                map[k] = 0;
-            }
-            STATE.filteredTasks.forEach(t => {
+                labels.push(k); map[k] = 0;
+             }
+             STATE.filteredTasks.forEach(t => {
                 const h = new Date(t.completed_at).getHours();
                 const k = `${String(h).padStart(2,'0')}:00`;
-                map[k]++;
-            });
+                if(map[k] !== undefined) map[k]++;
+             });
+             document.getElementById('chart-title-timeline').innerText = "Hourly Breakdown";
         }
-
         drawChart('chart-timeline', 'bar', labels, labels.map(l => map[l]));
     }
 
