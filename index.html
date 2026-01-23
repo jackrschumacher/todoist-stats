@@ -65,6 +65,10 @@
         .task-item:last-child { border-bottom: none; }
         .task-content { flex: 1; margin-right: 15px; line-height: 1.4; }
         .task-project { font-size: 10px; background: var(--highlight); color: var(--primary); padding: 3px 8px; border-radius: 4px; font-weight: bold; white-space: nowrap; }
+        
+        /* Select Styling */
+        select.btn-outline { -webkit-appearance: none; -moz-appearance: none; appearance: none; padding-right: 30px; background-color: var(--card-bg); }
+        select.btn-outline option { background-color: var(--card-bg); color: var(--text-main); }
     </style>
 </head>
 <body>
@@ -113,6 +117,10 @@
     <div class="flex between" style="margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 15px;">
         <div class="flex gap-10">
             <h2 style="margin:0; color: var(--primary);">Analytics</h2>
+            <select id="project-filter" onchange="window.filterByProject(this.value)" class="btn btn-outline btn-sm" style="max-width: 150px; font-weight: normal;">
+                <option value="ALL">All Projects</option>
+            </select>
+            
             <div id="filter-badge" style="background: var(--text-main); color: var(--bg-color); padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold;">All Time</div>
             <button id="btn-reset" onclick="window.resetFilter()" class="hidden btn btn-outline btn-sm"><i class="fa-solid fa-times"></i> Clear</button>
         </div>
@@ -172,7 +180,16 @@
     const API_URL = 'https://api.todoist.com/sync/v9/completed/get_all';
     
     let STATE = {
-        allTasks: [], filteredTasks: [], taskMap: {}, projectMap: {}, charts: {}, filterType: 'ALL', filterValue: null, isAuthReady: false
+        allTasks: [],        // All tasks from API
+        activeTasks: [],     // Tasks filtered by PROJECT
+        filteredTasks: [],   // Tasks filtered by PROJECT + TIME
+        taskMap: {}, 
+        projectMap: {}, 
+        charts: {}, 
+        filterType: 'ALL', 
+        filterValue: null, 
+        isAuthReady: false,
+        selectedProject: 'ALL'
     };
 
     // Global Stats Listener
@@ -229,6 +246,8 @@
             const cached = localStorage.getItem('todoist_task_cache');
             if (cached) {
                 STATE.allTasks = JSON.parse(cached);
+                STATE.activeTasks = [...STATE.allTasks];
+                populateProjectFilter();
                 processData();
                 document.getElementById('view-login').classList.add('hidden');
                 document.getElementById('view-dashboard').classList.remove('hidden');
@@ -263,6 +282,9 @@
 
             localStorage.setItem('todoist_token', token);
             localStorage.setItem('todoist_task_cache', JSON.stringify(STATE.allTasks));
+            
+            STATE.activeTasks = [...STATE.allTasks];
+            populateProjectFilter();
             processData();
             
             if (STATE.isAuthReady) calculateDeltas();
@@ -275,16 +297,12 @@
     }
 
     function calculateDeltas() {
-        if (!STATE.isAuthReady) {
-            console.warn("Auth not ready, skipping stats sync.");
-            return;
-        }
-
+        if (!STATE.isAuthReady) return;
         const lastStr = localStorage.getItem('todoist_last_sync_stats');
         const last = lastStr ? JSON.parse(lastStr) : { tasks: 0, projects: 0, months: {} };
         const currentTasks = STATE.allTasks.length;
         const currentProjects = Object.keys(STATE.projectMap).length;
-
+        // ... (Delta logic remains the same, using STATE.allTasks)
         const currentMonths = {};
         STATE.allTasks.forEach(t => {
             const m = t.completed_at.substring(0, 7);
@@ -302,7 +320,6 @@
             updates['global_stats/projects_processed'] = increment(currentProjects - last.projects);
             hasUpdates = true;
         }
-
         for (const [month, count] of Object.entries(currentMonths)) {
             const lastCount = last.months && last.months[month] ? last.months[month] : 0;
             const diff = count - lastCount;
@@ -311,42 +328,50 @@
                 hasUpdates = true;
             }
         }
-
         if (hasUpdates) {
             update(ref(db), updates)
                 .then(() => {
-                    console.log("✅ Stats synced to Firebase!");
                     localStorage.setItem('todoist_last_sync_stats', JSON.stringify({ 
-                        tasks: currentTasks, 
-                        projects: currentProjects,
-                        months: currentMonths 
+                        tasks: currentTasks, projects: currentProjects, months: currentMonths 
                     }));
-                })
-                .catch((e) => {
-                    console.error("❌ Stats sync failed:", e);
                 });
-        } else {
-            console.log("No new stats to sync.");
         }
     }
 
-    window.forceProjectSync = function() {
-        localStorage.removeItem('todoist_last_sync_stats');
-        calculateDeltas();
+    window.populateProjectFilter = function() {
+        const sel = document.getElementById('project-filter');
+        sel.innerHTML = '<option value="ALL">All Projects</option>';
+        const sorted = Object.entries(STATE.projectMap).sort((a,b) => a[1].localeCompare(b[1]));
+        sorted.forEach(([id, name]) => {
+            const opt = document.createElement('option');
+            opt.value = id;
+            opt.innerText = name;
+            sel.appendChild(opt);
+        });
+    }
+
+    window.filterByProject = function(pid) {
+        STATE.selectedProject = pid;
+        if (pid === 'ALL') {
+            STATE.activeTasks = [...STATE.allTasks];
+        } else {
+            STATE.activeTasks = STATE.allTasks.filter(t => t.project_id === pid);
+        }
+        processData();
     }
 
     function processData() {
+        // Rebuild the Heatmap Source Map based on ACTIVE tasks (Filtered by Project)
         STATE.taskMap = {};
-        STATE.allTasks.forEach(t => {
+        STATE.activeTasks.forEach(t => {
             const d = t.completed_at.substring(0, 10);
             STATE.taskMap[d] = (STATE.taskMap[d] || 0) + 1;
         });
         renderHeatmap();
 
-        // DEFAULT VIEW: ALL TIME (Tasks per month)
+        // Reset Time Filter to ALL to refresh view with new project data
         window.setFilter('ALL', null);
         
-        // Auto-scroll to bottom of heatmap
         setTimeout(() => {
              const el = document.getElementById('heatmap-scroll-area');
              if(el) el.scrollTop = el.scrollHeight;
@@ -356,7 +381,13 @@
     function renderHeatmap() {
         const container = document.getElementById('full-heatmap-content');
         container.innerHTML = '';
-        const dates = STATE.allTasks.map(t => new Date(t.completed_at));
+        
+        if (STATE.activeTasks.length === 0) {
+            container.innerHTML = '<div style="padding:20px; text-align:center; color:var(--text-muted);">No completed tasks found for this project.</div>';
+            return;
+        }
+
+        const dates = STATE.activeTasks.map(t => new Date(t.completed_at));
         const min = new Date(Math.min(...dates)), max = new Date();
         let curr = new Date(min.getFullYear(), min.getMonth(), 1);
 
@@ -396,9 +427,10 @@
         document.getElementById('filter-badge').innerText = val || "All Time";
         document.getElementById('btn-reset').classList.toggle('hidden', type === 'ALL');
         
-        if (type === 'ALL') STATE.filteredTasks = [...STATE.allTasks];
-        else if (type === 'MONTH') STATE.filteredTasks = STATE.allTasks.filter(t => t.completed_at.startsWith(val));
-        else if (type === 'DAY') STATE.filteredTasks = STATE.allTasks.filter(t => t.completed_at.startsWith(val));
+        // Filter from ACTIVE (Project-filtered) tasks
+        if (type === 'ALL') STATE.filteredTasks = [...STATE.activeTasks];
+        else if (type === 'MONTH') STATE.filteredTasks = STATE.activeTasks.filter(t => t.completed_at.startsWith(val));
+        else if (type === 'DAY') STATE.filteredTasks = STATE.activeTasks.filter(t => t.completed_at.startsWith(val));
 
         updateStats();
         renderTimeline();
@@ -415,12 +447,15 @@
         let labels = [], map = {};
         
         if (STATE.filterType === 'ALL') {
-             // Show full history range
-             const dates = STATE.allTasks.map(t => new Date(t.completed_at));
-             if(dates.length === 0) return;
+             // Show full history range of ACTIVE tasks
+             const dates = STATE.activeTasks.map(t => new Date(t.completed_at));
+             if(dates.length === 0) {
+                 drawChart('chart-timeline', 'bar', [], []);
+                 return;
+             }
              let curr = new Date(Math.min(...dates));
              curr.setDate(1); 
-             const end = new Date(); // Always extend to Today
+             const end = new Date(); 
              while (curr <= end) {
                 const k = `${curr.getFullYear()}-${String(curr.getMonth()+1).padStart(2,'0')}`;
                 labels.push(k); map[k] = 0;
@@ -433,7 +468,6 @@
              document.getElementById('chart-title-timeline').innerText = "History by Month";
 
         } else if (STATE.filterType === 'MONTH') {
-             // Show all days in the specific month
              const [y, m] = STATE.filterValue.split('-');
              const daysInMonth = new Date(y, m, 0).getDate();
              for(let d=1; d<=daysInMonth; d++) {
@@ -447,7 +481,6 @@
              document.getElementById('chart-title-timeline').innerText = "Daily Breakdown";
 
         } else {
-             // Hourly View (Day selected)
              for(let i=0; i<24; i++) {
                 const k = `${String(i).padStart(2,'0')}:00`;
                 labels.push(k); map[k] = 0;
