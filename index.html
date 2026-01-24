@@ -238,6 +238,15 @@
         if (projCache) STATE.projectMap = JSON.parse(projCache);
     };
 
+    // Helper to get local YYYY-MM-DD from the UTC string
+    function getLocalISODate(isoString) {
+        const d = new Date(isoString);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
     window.initFetch = async function(resync = false) {
         const token = document.getElementById('api-token').value.trim();
         if (!token) return;
@@ -302,10 +311,11 @@
         const last = lastStr ? JSON.parse(lastStr) : { tasks: 0, projects: 0, months: {} };
         const currentTasks = STATE.allTasks.length;
         const currentProjects = Object.keys(STATE.projectMap).length;
-        // ... (Delta logic remains the same, using STATE.allTasks)
+        
         const currentMonths = {};
+        // Use local time for community stats as well for consistency
         STATE.allTasks.forEach(t => {
-            const m = t.completed_at.substring(0, 7);
+            const m = getLocalISODate(t.completed_at).substring(0, 7);
             currentMonths[m] = (currentMonths[m] || 0) + 1;
         });
 
@@ -361,10 +371,10 @@
     }
 
     function processData() {
-        // Rebuild the Heatmap Source Map based on ACTIVE tasks (Filtered by Project)
+        // Rebuild the Heatmap Source Map using Local Time
         STATE.taskMap = {};
         STATE.activeTasks.forEach(t => {
-            const d = t.completed_at.substring(0, 10);
+            const d = getLocalISODate(t.completed_at);
             STATE.taskMap[d] = (STATE.taskMap[d] || 0) + 1;
         });
         renderHeatmap();
@@ -427,10 +437,14 @@
         document.getElementById('filter-badge').innerText = val || "All Time";
         document.getElementById('btn-reset').classList.toggle('hidden', type === 'ALL');
         
-        // Filter from ACTIVE (Project-filtered) tasks
-        if (type === 'ALL') STATE.filteredTasks = [...STATE.activeTasks];
-        else if (type === 'MONTH') STATE.filteredTasks = STATE.activeTasks.filter(t => t.completed_at.startsWith(val));
-        else if (type === 'DAY') STATE.filteredTasks = STATE.activeTasks.filter(t => t.completed_at.startsWith(val));
+        // Filter from ACTIVE (Project-filtered) tasks using Local Time Helper
+        if (type === 'ALL') {
+            STATE.filteredTasks = [...STATE.activeTasks];
+        } else if (type === 'MONTH') {
+            STATE.filteredTasks = STATE.activeTasks.filter(t => getLocalISODate(t.completed_at).startsWith(val));
+        } else if (type === 'DAY') {
+            STATE.filteredTasks = STATE.activeTasks.filter(t => getLocalISODate(t.completed_at) === val);
+        }
 
         updateStats();
         renderTimeline();
@@ -439,7 +453,8 @@
 
     function updateStats() {
         document.getElementById('stat-count').innerText = STATE.filteredTasks.length.toLocaleString();
-        const days = new Set(STATE.filteredTasks.map(t => t.completed_at.substring(0,10))).size || 1;
+        // Use local date for counting unique days
+        const days = new Set(STATE.filteredTasks.map(t => getLocalISODate(t.completed_at))).size || 1;
         document.getElementById('stat-avg').innerText = (STATE.filteredTasks.length / days).toFixed(1);
     }
 
@@ -461,8 +476,9 @@
                 labels.push(k); map[k] = 0;
                 curr.setMonth(curr.getMonth() + 1);
              }
+             // Group by Local Month
              STATE.filteredTasks.forEach(t => {
-                const k = t.completed_at.substring(0, 7);
+                const k = getLocalISODate(t.completed_at).substring(0, 7);
                 if(map[k] !== undefined) map[k]++;
              });
              document.getElementById('chart-title-timeline').innerText = "History by Month";
@@ -474,8 +490,9 @@
                 const k = `${y}-${m}-${String(d).padStart(2,'0')}`;
                 labels.push(k); map[k] = 0;
              }
+             // Group by Local Day
              STATE.filteredTasks.forEach(t => {
-                const k = t.completed_at.substring(0, 10);
+                const k = getLocalISODate(t.completed_at);
                 if(map[k] !== undefined) map[k]++;
              });
              document.getElementById('chart-title-timeline').innerText = "Daily Breakdown";
@@ -485,6 +502,7 @@
                 const k = `${String(i).padStart(2,'0')}:00`;
                 labels.push(k); map[k] = 0;
              }
+             // Hourly is safe (getHours is local by default)
              STATE.filteredTasks.forEach(t => {
                 const h = new Date(t.completed_at).getHours();
                 const k = `${String(h).padStart(2,'0')}:00`;
