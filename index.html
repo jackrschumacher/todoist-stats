@@ -106,7 +106,7 @@
         <input type="password" id="api-token" placeholder="Paste API Token">
         <button onclick="window.initFetch()" class="btn btn-primary" style="width: 100%; justify-content: center;">Load Data</button>
         <div id="loading-ui" class="hidden" style="margin-top: 20px;">
-            <div class="flex between" style="font-size: 12px;"><span>Fetching history...</span><span id="load-count">0</span></div>
+            <div class="flex between" style="font-size: 12px;"><span id="loading-msg">Fetching history...</span><span id="load-count">0</span></div>
             <div class="progress-track"><div id="progress-bar" class="progress-fill"></div></div>
             <div id="error-msg" style="color: red; font-size: 12px; margin-top: 10px;"></div>
         </div>
@@ -189,6 +189,7 @@
         filterType: 'ALL', 
         filterValue: null, 
         isAuthReady: false,
+        isCalculatingDeltas: false, // Prevents double-syncing race conditions
         selectedProject: 'ALL'
     };
 
@@ -303,10 +304,14 @@
             document.getElementById('view-dashboard').classList.remove('hidden');
         } catch (e) { alert("Fetch failed: " + e.message); }
         document.getElementById('loading-ui').classList.add('hidden');
+        // Reset loading text
+        document.getElementById('loading-msg').innerText = "Fetching history...";
     }
 
     function calculateDeltas() {
-        if (!STATE.isAuthReady) return;
+        if (!STATE.isAuthReady || STATE.isCalculatingDeltas) return;
+        STATE.isCalculatingDeltas = true; // Lock
+
         const lastStr = localStorage.getItem('todoist_last_sync_stats');
         const last = lastStr ? JSON.parse(lastStr) : { tasks: 0, projects: 0, months: {} };
         const currentTasks = STATE.allTasks.length;
@@ -318,6 +323,14 @@
             const m = getLocalISODate(t.completed_at).substring(0, 7);
             currentMonths[m] = (currentMonths[m] || 0) + 1;
         });
+
+        // UPDATE LOCAL STORAGE IMMEDIATELY
+        // This ensures that even if the firebase update fails, or if there were no updates,
+        // we are synced for the next run. This prevents "Last Sync" from getting stuck
+        // on a lower number and causing future syncs to over-count.
+        localStorage.setItem('todoist_last_sync_stats', JSON.stringify({ 
+            tasks: currentTasks, projects: currentProjects, months: currentMonths 
+        }));
 
         const updates = {};
         let hasUpdates = false;
@@ -340,11 +353,11 @@
         }
         if (hasUpdates) {
             update(ref(db), updates)
-                .then(() => {
-                    localStorage.setItem('todoist_last_sync_stats', JSON.stringify({ 
-                        tasks: currentTasks, projects: currentProjects, months: currentMonths 
-                    }));
-                });
+                .then(() => { console.log("Stats synced to community."); })
+                .catch((e) => { console.error("Stats sync failed:", e); })
+                .finally(() => { STATE.isCalculatingDeltas = false; });
+        } else {
+            STATE.isCalculatingDeltas = false;
         }
     }
 
@@ -559,7 +572,10 @@
         document.getElementById('theme-icon').className = t === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
     };
     window.logout = () => { localStorage.clear(); location.reload(); };
-    window.resyncData = () => window.initFetch(true);
+    window.resyncData = () => {
+        document.getElementById('loading-msg').innerText = "Syncing...";
+        window.initFetch(true);
+    };
 </script>
 </body>
 </html>
