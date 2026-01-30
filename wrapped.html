@@ -129,10 +129,21 @@
     const db = getDatabase(app);
     const API_URL = 'https://api.todoist.com/sync/v9/completed/get_all';
     
-    let STATE = {
-        allTasks: [], yearTasks: [], yearsMap: {}, projectMap: {}, currentSlide: 0, selectedYear: null, charts: {}
+    // OFFICIAL TODOIST COLOR MAPPING
+    const TODOIST_COLORS = {
+        "berry_red": "#b8256f", "red": "#db4035", "orange": "#ff9933",
+        "yellow": "#fad000", "olive_green": "#afb83b", "lime_green": "#7ecc49",
+        "green": "#299438", "mint_green": "#6accbc", "teal": "#158fad",
+        "sky_blue": "#14aaf5", "light_blue": "#96c3eb", "blue": "#4073ff",
+        "grape": "#884dff", "violet": "#af38eb", "lavender": "#eb96eb",
+        "magenta": "#e05194", "salmon": "#ff8d85", "charcoal": "#808080",
+        "grey": "#b8b8b8", "taupe": "#ccac93"
     };
-    const SLIDES_COUNT = 9; // Increased for new Projects slide
+
+    let STATE = {
+        allTasks: [], yearTasks: [], yearsMap: {}, projectMap: {}, projectColorMap: {}, currentSlide: 0, selectedYear: null, charts: {}
+    };
+    const SLIDES_COUNT = 9; 
 
     const statsRef = ref(db, 'global_stats');
     onValue(statsRef, (snapshot) => {
@@ -171,6 +182,20 @@
         return `${year}-${month}-${day}`;
     }
 
+    function getProjectColor(pid, name) {
+        const realColor = STATE.projectColorMap[pid];
+        if (realColor && TODOIST_COLORS[realColor]) {
+            return TODOIST_COLORS[realColor];
+        }
+        let hash = 0;
+        const str = name || "Deleted Project";
+        for (let i = 0; i < str.length; i++) {
+            hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const h = Math.abs(hash % 360);
+        return `hsl(${h}, 65%, 55%)`; 
+    }
+
     async function fetchAllData(token) {
         // First, fetch project names (metadata)
         try {
@@ -181,7 +206,10 @@
             });
             const projData = await projRes.json();
             if(projData.projects) {
-                projData.projects.forEach(p => STATE.projectMap[p.id] = p.name);
+                projData.projects.forEach(p => {
+                    STATE.projectMap[p.id] = p.name;
+                    STATE.projectColorMap[p.id] = p.color; // Save color
+                });
             }
         } catch(e) { console.warn("Could not fetch projects", e); }
 
@@ -302,6 +330,8 @@
         const top5Projs = sortedProjects.slice(0, 5);
         const projLabels = top5Projs.map(p => STATE.projectMap[p[0]] || "Deleted Project");
         const projData = top5Projs.map(p => p[1]);
+        // NEW: Generate colors
+        const projColors = top5Projs.map(p => getProjectColor(p[0], STATE.projectMap[p[0]]));
 
         // 2. Best Day
         let maxVal = 0, bestDate = "";
@@ -326,7 +356,7 @@
         document.getElementById('best-hour').innerText = `${hrDisp} ${ampm}`;
         document.getElementById('final-peak-hour').innerText = `${hrDisp} ${ampm}`;
 
-        renderCharts(weekdayMap, hourMap, projLabels, projData);
+        renderCharts(weekdayMap, hourMap, projLabels, projData, projColors);
     }
 
     window.emailTextReport = function() {
@@ -424,7 +454,7 @@
     }
     function launchConfetti() { confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#e44232', '#fff'] }); }
 
-    function renderCharts(wData, hData, pLabels, pData) {
+    function renderCharts(wData, hData, pLabels, pData, pColors) {
         // Week Chart
         if(STATE.charts['week']) STATE.charts['week'].destroy();
         STATE.charts['week'] = new Chart(document.getElementById('week-chart'), {
@@ -452,7 +482,7 @@
                 labels: pLabels, 
                 datasets: [{ 
                     data: pData, 
-                    backgroundColor: '#e44232', 
+                    backgroundColor: pColors, 
                     borderRadius: 4 
                 }] 
             },

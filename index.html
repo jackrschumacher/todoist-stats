@@ -191,17 +191,30 @@
     const db = getDatabase(app);
     const API_URL = 'https://api.todoist.com/sync/v9/completed/get_all';
     
+    // OFFICIAL TODOIST COLOR MAPPING
+    const TODOIST_COLORS = {
+        "berry_red": "#b8256f", "red": "#db4035", "orange": "#ff9933",
+        "yellow": "#fad000", "olive_green": "#afb83b", "lime_green": "#7ecc49",
+        "green": "#299438", "mint_green": "#6accbc", "teal": "#158fad",
+        "sky_blue": "#14aaf5", "light_blue": "#96c3eb", "blue": "#4073ff",
+        "grape": "#884dff", "violet": "#af38eb", "lavender": "#eb96eb",
+        "magenta": "#e05194", "salmon": "#ff8d85", "charcoal": "#808080",
+        "grey": "#b8b8b8", "taupe": "#ccac93"
+    };
+
     let STATE = {
         allTasks: [],        // All tasks from API
         activeTasks: [],     // Tasks filtered by PROJECT
         filteredTasks: [],   // Tasks filtered by PROJECT + TIME
         taskMap: {}, 
-        projectMap: {}, 
+        projectMap: {},
+        projectColorMap: {}, 
         charts: {}, 
         filterType: 'ALL', 
         filterValue: null, 
         isAuthReady: false,
-        isCalculatingDeltas: false, // Prevents double-syncing race conditions
+        isCalculatingDeltas: false, 
+        isFetching: false, // LOCK FOR RACE CONDITION
         selectedProject: 'ALL'
     };
 
@@ -249,6 +262,9 @@
         }
         const projCache = localStorage.getItem('todoist_projects_cache');
         if (projCache) STATE.projectMap = JSON.parse(projCache);
+        
+        const colorCache = localStorage.getItem('todoist_colors_cache');
+        if (colorCache) STATE.projectColorMap = JSON.parse(colorCache);
     };
 
     // Helper to get local YYYY-MM-DD from the UTC string
@@ -260,8 +276,13 @@
         return `${year}-${month}-${day}`;
     }
 
-    function getProjectColor(str) {
+    function getProjectColor(pid, name) {
+        const realColor = STATE.projectColorMap[pid];
+        if (realColor && TODOIST_COLORS[realColor]) {
+            return TODOIST_COLORS[realColor];
+        }
         let hash = 0;
+        const str = name || "Deleted Project";
         for (let i = 0; i < str.length; i++) {
             hash = str.charCodeAt(i) + ((hash << 5) - hash);
         }
@@ -270,8 +291,11 @@
     }
 
     window.initFetch = async function(resync = false) {
+        if (STATE.isFetching) return; // RACE CONDITION LOCK
+        STATE.isFetching = true;
+
         const token = document.getElementById('api-token').value.trim();
-        if (!token) return;
+        if (!token) { STATE.isFetching = false; return; }
 
         if (!resync) {
             const cached = localStorage.getItem('todoist_task_cache');
@@ -284,6 +308,7 @@
                 document.getElementById('view-dashboard').classList.remove('hidden');
                 if(STATE.isAuthReady) calculateDeltas();
                 else setTimeout(() => { if(STATE.isAuthReady) calculateDeltas(); }, 2000);
+                STATE.isFetching = false;
                 return;
             }
         }
@@ -298,8 +323,15 @@
                 body: JSON.stringify({ sync_token: '*', resource_types: ['projects'] })
             });
             const projData = await projRes.json();
-            projData.projects.forEach(p => STATE.projectMap[p.id] = p.name);
-            localStorage.setItem('todoist_projects_cache', JSON.stringify(STATE.projectMap));
+            
+            if (projData.projects) {
+                projData.projects.forEach(p => {
+                    STATE.projectMap[p.id] = p.name;
+                    STATE.projectColorMap[p.id] = p.color; 
+                });
+                localStorage.setItem('todoist_projects_cache', JSON.stringify(STATE.projectMap));
+                localStorage.setItem('todoist_colors_cache', JSON.stringify(STATE.projectColorMap));
+            }
 
             while(hasMore) {
                 const res = await fetch(`${API_URL}?limit=200&offset=${offset}`, { headers: { 'Authorization': `Bearer ${token}` } });
@@ -324,14 +356,16 @@
             document.getElementById('view-login').classList.add('hidden');
             document.getElementById('view-dashboard').classList.remove('hidden');
         } catch (e) { alert("Fetch failed: " + e.message); }
-        document.getElementById('loading-ui').classList.add('hidden');
-        // Reset loading text
-        document.getElementById('loading-msg').innerText = "Fetching history...";
+        finally {
+            STATE.isFetching = false; // RELEASE LOCK
+            document.getElementById('loading-ui').classList.add('hidden');
+            document.getElementById('loading-msg').innerText = "Fetching history...";
+        }
     }
 
     function calculateDeltas() {
         if (!STATE.isAuthReady || STATE.isCalculatingDeltas) return;
-        STATE.isCalculatingDeltas = true; // Lock
+        STATE.isCalculatingDeltas = true; 
 
         const lastStr = localStorage.getItem('todoist_last_sync_stats');
         const last = lastStr ? JSON.parse(lastStr) : { tasks: 0, projects: 0, months: {} };
@@ -339,13 +373,11 @@
         const currentProjects = Object.keys(STATE.projectMap).length;
         
         const currentMonths = {};
-        // Use local time for community stats as well for consistency
         STATE.allTasks.forEach(t => {
             const m = getLocalISODate(t.completed_at).substring(0, 7);
             currentMonths[m] = (currentMonths[m] || 0) + 1;
         });
 
-        // UPDATE LOCAL STORAGE IMMEDIATELY
         localStorage.setItem('todoist_last_sync_stats', JSON.stringify({ 
             tasks: currentTasks, projects: currentProjects, months: currentMonths 
         }));
@@ -402,15 +434,12 @@
     }
 
     function processData() {
-        // Rebuild the Heatmap Source Map using Local Time
         STATE.taskMap = {};
         STATE.activeTasks.forEach(t => {
             const d = getLocalISODate(t.completed_at);
             STATE.taskMap[d] = (STATE.taskMap[d] || 0) + 1;
         });
         renderHeatmap();
-
-        // Reset Time Filter to ALL to refresh view with new project data
         window.setFilter('ALL', null);
         
         setTimeout(() => {
@@ -468,7 +497,6 @@
         document.getElementById('filter-badge').innerText = val || "All Time";
         document.getElementById('btn-reset').classList.toggle('hidden', type === 'ALL');
         
-        // Filter from ACTIVE (Project-filtered) tasks using Local Time Helper
         if (type === 'ALL') {
             STATE.filteredTasks = [...STATE.activeTasks];
         } else if (type === 'MONTH') {
@@ -479,7 +507,7 @@
 
         updateStats();
         renderTimeline();
-        renderProjectBreakdown(); // NEW: Update the summary card
+        renderProjectBreakdown(); 
         renderTaskList();
     }
 
@@ -492,21 +520,18 @@
             return;
         }
 
-        // Aggregate by Project
         const counts = {};
         STATE.filteredTasks.forEach(t => {
             const pid = t.project_id || 'unknown';
             counts[pid] = (counts[pid] || 0) + 1;
         });
 
-        // Convert to Array and Sort Descending
         const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]);
         const maxVal = sorted[0][1];
 
-        // Generate HTML
         sorted.forEach(([pid, count]) => {
             const name = STATE.projectMap[pid] || 'Deleted Projects';
-            const color = getProjectColor(name);
+            const color = getProjectColor(pid, name);
             const percent = (count / maxVal) * 100;
 
             const row = document.createElement('div');
@@ -523,7 +548,6 @@
 
     function updateStats() {
         document.getElementById('stat-count').innerText = STATE.filteredTasks.length.toLocaleString();
-        // Use local date for counting unique days
         const days = new Set(STATE.filteredTasks.map(t => getLocalISODate(t.completed_at))).size || 1;
         document.getElementById('stat-avg').innerText = (STATE.filteredTasks.length / days).toFixed(1);
     }
@@ -531,9 +555,8 @@
     function renderTimeline() {
         const type = STATE.filterType;
         let labels = [];
-        let dataMap = {}; // Key: Label -> { ProjID: Count }
+        let dataMap = {}; 
 
-        // 1. Determine Labels and initialize map
         if (type === 'ALL') {
              const dates = STATE.activeTasks.map(t => new Date(t.completed_at));
              if(dates.length === 0) {
@@ -562,7 +585,6 @@
              document.getElementById('chart-title-timeline').innerText = "Daily Breakdown";
 
         } else {
-             // Hourly
              for(let i=0; i<24; i++) {
                 const k = `${String(i).padStart(2,'0')}:00`;
                 labels.push(k); 
@@ -571,8 +593,9 @@
              document.getElementById('chart-title-timeline').innerText = "Hourly Breakdown";
         }
 
-        // 2. Aggregate Data
-        const allProjectIds = new Set();
+        const allProjectNames = new Set();
+        const nameToPidMap = {}; 
+
         STATE.filteredTasks.forEach(t => {
             let k;
             if (type === 'ALL') k = getLocalISODate(t.completed_at).substring(0, 7);
@@ -581,37 +604,28 @@
 
             if (dataMap[k]) {
                 const pid = t.project_id || 'unknown';
-                allProjectIds.add(pid);
-                dataMap[k][pid] = (dataMap[k][pid] || 0) + 1;
+                const name = STATE.projectMap[pid] || 'Deleted Projects';
+                
+                allProjectNames.add(name);
+                if (!nameToPidMap[name]) nameToPidMap[name] = pid; 
+                
+                dataMap[k][name] = (dataMap[k][name] || 0) + 1;
             }
         });
 
-        // 3. Build Stacked Datasets (Merged by Label)
-        const datasetMap = {}; // Label -> Dataset
-
-        Array.from(allProjectIds).forEach(pid => {
-            const label = STATE.projectMap[pid] || 'Deleted Projects';
-            const data = labels.map(l => dataMap[l][pid] || 0);
-
-            if (datasetMap[label]) {
-                // Merge data into existing dataset for this label
-                datasetMap[label].data = datasetMap[label].data.map((val, idx) => val + data[idx]);
-            } else {
-                // Create new dataset for this label
-                datasetMap[label] = {
-                    label: label,
-                    data: data,
-                    backgroundColor: getProjectColor(label),
-                    stack: 'combined',
-                    barPercentage: 0.8,
-                    categoryPercentage: 0.9
-                };
-            }
+        const datasets = Array.from(allProjectNames).map(name => {
+            const pid = nameToPidMap[name];
+            return {
+                label: name,
+                data: labels.map(l => dataMap[l][name] || 0),
+                backgroundColor: getProjectColor(pid, name),
+                stack: 'combined',
+                barPercentage: 0.8,
+                categoryPercentage: 0.9
+            };
         });
 
-        // Convert map to array and sort
-        const datasets = Object.values(datasetMap).sort((a,b) => a.label.localeCompare(b.label));
-
+        datasets.sort((a,b) => a.label.localeCompare(b.label));
         drawStackedChart('chart-timeline', labels, datasets);
     }
 
@@ -630,7 +644,6 @@
         `).join('');
     }
 
-    // New Function for Stacked Charts
     function drawStackedChart(id, labels, datasets) {
         const ctx = document.getElementById(id).getContext('2d');
         if(STATE.charts[id]) STATE.charts[id].destroy();
@@ -646,11 +659,9 @@
                     tooltip: {
                         mode: 'index',
                         intersect: false,
-                        // FILTER: Only show items greater than 0
                         filter: function(tooltipItem) {
                             return tooltipItem.raw > 0;
                         },
-                        // SORT: Biggest bars on top
                         itemSort: function(a, b) {
                             return b.raw - a.raw;
                         }
