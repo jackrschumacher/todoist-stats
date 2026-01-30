@@ -66,7 +66,13 @@
         .task-content { flex: 1; margin-right: 15px; line-height: 1.4; }
         .task-project { font-size: 10px; background: var(--highlight); color: var(--primary); padding: 3px 8px; border-radius: 4px; font-weight: bold; white-space: nowrap; }
         
-        /* Select Styling */
+        .proj-row { display: flex; align-items: center; margin-bottom: 8px; font-size: 13px; }
+        .proj-color { width: 10px; height: 10px; border-radius: 50%; margin-right: 10px; flex-shrink: 0; }
+        .proj-name { width: 40%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 10px; }
+        .proj-bar-track { flex: 1; height: 6px; background: var(--border); border-radius: 3px; margin-right: 10px; overflow: hidden; }
+        .proj-bar-fill { height: 100%; }
+        .proj-count { font-weight: bold; width: 30px; text-align: right; }
+
         select.btn-outline { -webkit-appearance: none; -moz-appearance: none; appearance: none; padding-right: 30px; background-color: var(--card-bg); }
         select.btn-outline option { background-color: var(--card-bg); color: var(--text-main); }
     </style>
@@ -148,6 +154,12 @@
                 <h3 id="chart-title-timeline" style="margin:0; font-size:16px;">Activity Timeline</h3>
                 <div class="chart-container"><canvas id="chart-timeline"></canvas></div>
             </div>
+            
+            <div id="project-breakdown-card" class="card">
+                <h3 style="margin:0; font-size:16px; margin-bottom:15px; color:var(--primary);">Project Breakdown</h3>
+                <div id="project-breakdown-list" style="max-height: 250px; overflow-y: auto; padding-right: 5px;"></div>
+            </div>
+
             <div id="tasks-detail-card" class="card hidden">
                 <div class="flex between" style="margin-bottom:15px;">
                     <h3 id="tasks-detail-title" style="margin:0; font-size:16px; color:var(--primary);">Daily Tasks</h3>
@@ -246,6 +258,15 @@
         const month = String(d.getMonth() + 1).padStart(2, '0');
         const day = String(d.getDate()).padStart(2, '0');
         return `${year}-${month}-${day}`;
+    }
+
+    function getProjectColor(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const h = Math.abs(hash % 360);
+        return `hsl(${h}, 65%, 55%)`; 
     }
 
     window.initFetch = async function(resync = false) {
@@ -458,7 +479,46 @@
 
         updateStats();
         renderTimeline();
+        renderProjectBreakdown(); // NEW: Update the summary card
         renderTaskList();
+    }
+
+    function renderProjectBreakdown() {
+        const container = document.getElementById('project-breakdown-list');
+        container.innerHTML = '';
+
+        if(STATE.filteredTasks.length === 0) {
+            container.innerHTML = '<div style="color:var(--text-muted); font-size:12px;">No tasks in this period.</div>';
+            return;
+        }
+
+        // Aggregate by Project
+        const counts = {};
+        STATE.filteredTasks.forEach(t => {
+            const pid = t.project_id || 'unknown';
+            counts[pid] = (counts[pid] || 0) + 1;
+        });
+
+        // Convert to Array and Sort Descending
+        const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]);
+        const maxVal = sorted[0][1];
+
+        // Generate HTML
+        sorted.forEach(([pid, count]) => {
+            const name = STATE.projectMap[pid] || 'Deleted Projects';
+            const color = getProjectColor(name);
+            const percent = (count / maxVal) * 100;
+
+            const row = document.createElement('div');
+            row.className = 'proj-row';
+            row.innerHTML = `
+                <div class="proj-color" style="background:${color}"></div>
+                <div class="proj-name" title="${name}">${name}</div>
+                <div class="proj-bar-track"><div class="proj-bar-fill" style="width:${percent}%; background:${color}"></div></div>
+                <div class="proj-count">${count}</div>
+            `;
+            container.appendChild(row);
+        });
     }
 
     function updateStats() {
@@ -469,13 +529,15 @@
     }
 
     function renderTimeline() {
-        let labels = [], map = {};
-        
-        if (STATE.filterType === 'ALL') {
-             // Show full history range of ACTIVE tasks
+        const type = STATE.filterType;
+        let labels = [];
+        let dataMap = {}; // Key: Label -> { ProjID: Count }
+
+        // 1. Determine Labels and initialize map
+        if (type === 'ALL') {
              const dates = STATE.activeTasks.map(t => new Date(t.completed_at));
              if(dates.length === 0) {
-                 drawChart('chart-timeline', 'bar', [], []);
+                 drawStackedChart('chart-timeline', [], []);
                  return;
              }
              let curr = new Date(Math.min(...dates));
@@ -483,44 +545,74 @@
              const end = new Date(); 
              while (curr <= end) {
                 const k = `${curr.getFullYear()}-${String(curr.getMonth()+1).padStart(2,'0')}`;
-                labels.push(k); map[k] = 0;
+                labels.push(k); 
+                dataMap[k] = {};
                 curr.setMonth(curr.getMonth() + 1);
              }
-             // Group by Local Month
-             STATE.filteredTasks.forEach(t => {
-                const k = getLocalISODate(t.completed_at).substring(0, 7);
-                if(map[k] !== undefined) map[k]++;
-             });
              document.getElementById('chart-title-timeline').innerText = "History by Month";
 
-        } else if (STATE.filterType === 'MONTH') {
+        } else if (type === 'MONTH') {
              const [y, m] = STATE.filterValue.split('-');
              const daysInMonth = new Date(y, m, 0).getDate();
              for(let d=1; d<=daysInMonth; d++) {
                 const k = `${y}-${m}-${String(d).padStart(2,'0')}`;
-                labels.push(k); map[k] = 0;
+                labels.push(k); 
+                dataMap[k] = {};
              }
-             // Group by Local Day
-             STATE.filteredTasks.forEach(t => {
-                const k = getLocalISODate(t.completed_at);
-                if(map[k] !== undefined) map[k]++;
-             });
              document.getElementById('chart-title-timeline').innerText = "Daily Breakdown";
 
         } else {
+             // Hourly
              for(let i=0; i<24; i++) {
                 const k = `${String(i).padStart(2,'0')}:00`;
-                labels.push(k); map[k] = 0;
+                labels.push(k); 
+                dataMap[k] = {};
              }
-             // Hourly is safe (getHours is local by default)
-             STATE.filteredTasks.forEach(t => {
-                const h = new Date(t.completed_at).getHours();
-                const k = `${String(h).padStart(2,'0')}:00`;
-                if(map[k] !== undefined) map[k]++;
-             });
              document.getElementById('chart-title-timeline').innerText = "Hourly Breakdown";
         }
-        drawChart('chart-timeline', 'bar', labels, labels.map(l => map[l]));
+
+        // 2. Aggregate Data
+        const allProjectIds = new Set();
+        STATE.filteredTasks.forEach(t => {
+            let k;
+            if (type === 'ALL') k = getLocalISODate(t.completed_at).substring(0, 7);
+            else if (type === 'MONTH') k = getLocalISODate(t.completed_at);
+            else k = `${String(new Date(t.completed_at).getHours()).padStart(2,'0')}:00`;
+
+            if (dataMap[k]) {
+                const pid = t.project_id || 'unknown';
+                allProjectIds.add(pid);
+                dataMap[k][pid] = (dataMap[k][pid] || 0) + 1;
+            }
+        });
+
+        // 3. Build Stacked Datasets (Merged by Label)
+        const datasetMap = {}; // Label -> Dataset
+
+        Array.from(allProjectIds).forEach(pid => {
+            const label = STATE.projectMap[pid] || 'Deleted Projects';
+            const data = labels.map(l => dataMap[l][pid] || 0);
+
+            if (datasetMap[label]) {
+                // Merge data into existing dataset for this label
+                datasetMap[label].data = datasetMap[label].data.map((val, idx) => val + data[idx]);
+            } else {
+                // Create new dataset for this label
+                datasetMap[label] = {
+                    label: label,
+                    data: data,
+                    backgroundColor: getProjectColor(label),
+                    stack: 'combined',
+                    barPercentage: 0.8,
+                    categoryPercentage: 0.9
+                };
+            }
+        });
+
+        // Convert map to array and sort
+        const datasets = Object.values(datasetMap).sort((a,b) => a.label.localeCompare(b.label));
+
+        drawStackedChart('chart-timeline', labels, datasets);
     }
 
     function renderTaskList() {
@@ -533,17 +625,42 @@
         list.innerHTML = STATE.filteredTasks.map(t => `
             <div class="task-item">
                 <div class="task-content">${t.content}</div>
-                <div class="task-project">${STATE.projectMap[t.project_id] || 'Deleted Project'}</div>
+                <div class="task-project">${STATE.projectMap[t.project_id] || 'Deleted Projects'}</div>
             </div>
         `).join('');
     }
 
-    function drawChart(id, type, labels, data) {
+    // New Function for Stacked Charts
+    function drawStackedChart(id, labels, datasets) {
         const ctx = document.getElementById(id).getContext('2d');
         if(STATE.charts[id]) STATE.charts[id].destroy();
         STATE.charts[id] = new Chart(ctx, {
-            type, data: { labels, datasets: [{ data, backgroundColor: '#e44232' }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: false } }
+            type: 'bar', 
+            data: { labels, datasets },
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                interaction: { mode: 'index', intersect: false },
+                plugins: { 
+                    legend: { display: true, position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        // FILTER: Only show items greater than 0
+                        filter: function(tooltipItem) {
+                            return tooltipItem.raw > 0;
+                        },
+                        // SORT: Biggest bars on top
+                        itemSort: function(a, b) {
+                            return b.raw - a.raw;
+                        }
+                    }
+                },
+                scales: {
+                    x: { stacked: true, grid: { display: false } },
+                    y: { stacked: true, beginAtZero: true }
+                }
+            }
         });
     }
 
