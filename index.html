@@ -325,9 +325,6 @@
         });
 
         // UPDATE LOCAL STORAGE IMMEDIATELY
-        // This ensures that even if the firebase update fails, or if there were no updates,
-        // we are synced for the next run. This prevents "Last Sync" from getting stuck
-        // on a lower number and causing future syncs to over-count.
         localStorage.setItem('todoist_last_sync_stats', JSON.stringify({ 
             tasks: currentTasks, projects: currentProjects, months: currentMonths 
         }));
@@ -536,7 +533,7 @@
         list.innerHTML = STATE.filteredTasks.map(t => `
             <div class="task-item">
                 <div class="task-content">${t.content}</div>
-                <div class="task-project">${STATE.projectMap[t.project_id] || 'Inbox'}</div>
+                <div class="task-project">${STATE.projectMap[t.project_id] || 'Deleted Project'}</div>
             </div>
         `).join('');
     }

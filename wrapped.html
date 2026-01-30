@@ -74,19 +74,22 @@
     <div class="slide" id="slide-1"><h1>Select a Year</h1><p>Which chapter of your life do you want to revisit?</p><div id="year-grid"></div></div>
     <div class="slide" id="slide-2"><h1><span id="display-year" class="highlight">202X</span> Wrapped</h1><p>Let's see what you accomplished that year.</p></div>
     <div class="slide" id="slide-3"><p>In <span class="year-label"></span>, you completed</p><h2 id="total-tasks">0</h2><p>Tasks</p></div>
-    <div class="slide" id="slide-4"><p>Your most productive day of <span class="year-label"></span> was</p><h1 id="best-day-date" class="highlight">...</h1><p><span id="best-day-count" style="font-weight:bold; color:white;">0</span> tasks completed.</p></div>
-    <div class="slide" id="slide-5"><p>Your favorite day of the week was</p><h1 id="best-weekday" class="highlight">...</h1><div class="chart-box"><canvas id="week-chart"></canvas></div></div>
-    <div class="slide" id="slide-6"><p>You were most active around</p><h1 id="best-hour" class="highlight">...</h1><div class="chart-box"><canvas id="hour-chart"></canvas></div></div>
     
-    <div class="slide" id="slide-7">
+    <div class="slide" id="slide-4"><p>Your obsession this year was</p><h1 id="top-project-name" class="highlight">...</h1><div class="chart-box"><canvas id="project-chart"></canvas></div></div>
+    
+    <div class="slide" id="slide-5"><p>Your most productive day of <span class="year-label"></span> was</p><h1 id="best-day-date" class="highlight">...</h1><p><span id="best-day-count" style="font-weight:bold; color:white;">0</span> tasks completed.</p></div>
+    <div class="slide" id="slide-6"><p>Your favorite day of the week was</p><h1 id="best-weekday" class="highlight">...</h1><div class="chart-box"><canvas id="week-chart"></canvas></div></div>
+    <div class="slide" id="slide-7"><p>You were most active around</p><h1 id="best-hour" class="highlight">...</h1><div class="chart-box"><canvas id="hour-chart"></canvas></div></div>
+    
+    <div class="slide" id="slide-8">
         <div id="capture-card" class="summary-card">
             <h3 style="color:#e44232; margin:0; text-transform:uppercase; letter-spacing:2px; margin-bottom: 5px;"><i class="fa-solid fa-check-double"></i> Todoist Wrapped <span class="year-label"></span></h3>
             <div style="font-size: 4.5rem; font-weight: 800; margin: 10px 0; line-height:1;" id="final-total">0</div>
             <div style="color:#888; margin-bottom: 25px; letter-spacing: 1px; font-size: 0.9rem;">TASKS COMPLETED</div>
             <div style="background:rgba(255,255,255,0.05); border-radius:12px; padding:20px; display:grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: left;">
-                <div><div style="color:#888; font-size:0.7rem; font-weight:700;">BEST DAY</div><div id="final-best-day" style="font-weight:bold; font-size:1.1rem;">-</div></div>
+                <div><div style="color:#888; font-size:0.7rem; font-weight:700;">TOP PROJECT</div><div id="final-top-project" style="font-weight:bold; font-size:1.1rem; color:#e44232;">-</div></div>
                 <div><div style="color:#888; font-size:0.7rem; font-weight:700;">PEAK HOUR</div><div id="final-peak-hour" style="font-weight:bold; font-size:1.1rem;">-</div></div>
-                <div><div style="color:#888; font-size:0.7rem; font-weight:700;">DAILY AVG</div><div id="final-avg" style="font-weight:bold; font-size:1.1rem;">-</div></div>
+                <div><div style="color:#888; font-size:0.7rem; font-weight:700;">BEST DAY</div><div id="final-best-day" style="font-weight:bold; font-size:1.1rem;">-</div></div>
                 <div><div style="color:#888; font-size:0.7rem; font-weight:700;">POWER DAY</div><div id="final-weekday" style="font-weight:bold; font-size:1.1rem;">-</div></div>
             </div>
             <div style="margin-top:20px; border-top:1px solid #333; padding-top:15px; font-size:0.7rem; color:#666; text-align:center;">Global Wrappeds Generated: <span id="final-global-wrappeds" style="color:#e44232; font-weight:bold;">...</span></div>
@@ -127,9 +130,9 @@
     const API_URL = 'https://api.todoist.com/sync/v9/completed/get_all';
     
     let STATE = {
-        allTasks: [], yearTasks: [], yearsMap: {}, currentSlide: 0, selectedYear: null, charts: {}
+        allTasks: [], yearTasks: [], yearsMap: {}, projectMap: {}, currentSlide: 0, selectedYear: null, charts: {}
     };
-    const SLIDES_COUNT = 8; 
+    const SLIDES_COUNT = 9; // Increased for new Projects slide
 
     const statsRef = ref(db, 'global_stats');
     onValue(statsRef, (snapshot) => {
@@ -169,7 +172,20 @@
     }
 
     async function fetchAllData(token) {
-        // CACHE CHECK
+        // First, fetch project names (metadata)
+        try {
+            document.getElementById('loading-text').innerText = "Fetching project names...";
+            const projRes = await fetch('https://api.todoist.com/sync/v9/sync', {
+                method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sync_token: '*', resource_types: ['projects'] })
+            });
+            const projData = await projRes.json();
+            if(projData.projects) {
+                projData.projects.forEach(p => STATE.projectMap[p.id] = p.name);
+            }
+        } catch(e) { console.warn("Could not fetch projects", e); }
+
+        // CACHE CHECK FOR TASKS
         const cached = localStorage.getItem('todoist_task_cache');
         if(cached) {
             try {
@@ -189,6 +205,7 @@
         let offset = 0; let hasMore = true;
         let newTasks = [];
         try {
+            document.getElementById('loading-text').innerText = "Fetching tasks...";
             while(hasMore) {
                 const res = await fetch(`${API_URL}?limit=200&offset=${offset}`, { headers: { 'Authorization': `Bearer ${token}` } });
                 if(!res.ok) throw new Error("API Error");
@@ -202,8 +219,8 @@
             }
             STATE.allTasks = newTasks;
             
-            // OPTIMIZE CACHE
-            const minimalData = newTasks.map(t => ({ id: t.id, completed_at: t.completed_at }));
+            // OPTIMIZE CACHE - include project_id now
+            const minimalData = newTasks.map(t => ({ id: t.id, completed_at: t.completed_at, project_id: t.project_id }));
             localStorage.setItem('todoist_task_cache', JSON.stringify(minimalData));
             
             processYears();
@@ -259,19 +276,36 @@
         document.getElementById('final-total').innerText = total.toLocaleString();
 
         const dayMap = {}; const weekdayMap = [0,0,0,0,0,0,0]; const hourMap = new Array(24).fill(0);
+        const projCountMap = {};
+
         tasks.forEach(t => {
+            // Projects
+            const pid = t.project_id || 'unknown';
+            projCountMap[pid] = (projCountMap[pid] || 0) + 1;
+
+            // Times
             const d = new Date(t.completed_at);
-            // Use LOCAL Date Key
             const dateKey = getLocalISODate(t.completed_at);
             dayMap[dateKey] = (dayMap[dateKey] || 0) + 1;
             weekdayMap[d.getDay()]++;
             hourMap[d.getHours()]++;
         });
 
+        // 1. Projects Analysis
+        const sortedProjects = Object.entries(projCountMap).sort((a,b) => b[1] - a[1]);
+        const topProjectID = sortedProjects[0] ? sortedProjects[0][0] : null;
+        const topProjectName = STATE.projectMap[topProjectID] || "Deleted Project";
+        document.getElementById('top-project-name').innerText = topProjectName;
+        document.getElementById('final-top-project').innerText = topProjectName;
+        
+        // Prepare Project Chart Data (Top 5)
+        const top5Projs = sortedProjects.slice(0, 5);
+        const projLabels = top5Projs.map(p => STATE.projectMap[p[0]] || "Deleted Project");
+        const projData = top5Projs.map(p => p[1]);
+
+        // 2. Best Day
         let maxVal = 0, bestDate = "";
         for(const [d,c] of Object.entries(dayMap)) { if(c > maxVal) { maxVal = c; bestDate = d; } }
-        
-        // Ensure best date string parses correctly
         const [y, m, d] = bestDate.split('-').map(Number);
         const prettyDate = new Date(y, m-1, d).toLocaleDateString(undefined, {month:'long', day:'numeric'});
         
@@ -279,21 +313,20 @@
         document.getElementById('best-day-count').innerText = maxVal;
         document.getElementById('final-best-day').innerText = prettyDate;
 
+        // 3. Best Weekday
         const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
         const bestWkIdx = weekdayMap.indexOf(Math.max(...weekdayMap));
         document.getElementById('best-weekday').innerText = days[bestWkIdx];
         document.getElementById('final-weekday').innerText = days[bestWkIdx];
 
+        // 4. Peak Hour
         const bestHr = hourMap.indexOf(Math.max(...hourMap));
         const ampm = bestHr >= 12 ? 'PM' : 'AM';
         const hrDisp = bestHr % 12 || 12;
         document.getElementById('best-hour').innerText = `${hrDisp} ${ampm}`;
         document.getElementById('final-peak-hour').innerText = `${hrDisp} ${ampm}`;
 
-        const uniqueDays = Object.keys(dayMap).length || 1;
-        document.getElementById('final-avg').innerText = (total / uniqueDays).toFixed(1);
-
-        renderCharts(weekdayMap, hourMap);
+        renderCharts(weekdayMap, hourMap, projLabels, projData);
     }
 
     window.emailTextReport = function() {
@@ -306,6 +339,7 @@
 
         let text = `My Todoist Wrapped ${STATE.selectedYear} Report\n\n`;
         text += `✅ Total Tasks: ${document.getElementById('final-total').innerText}\n`;
+        text += `🏆 Top Project: ${document.getElementById('final-top-project').innerText}\n`;
         text += `📅 Best Day: ${document.getElementById('final-best-day').innerText}\n`;
         text += `⚡ Peak Productivity: ${document.getElementById('final-peak-hour').innerText}\n`;
         text += `📆 Power Weekday: ${document.getElementById('final-weekday').innerText}\n\n`;
@@ -361,7 +395,7 @@
         STATE.currentSlide = idx;
         document.getElementById(`slide-${idx}`).classList.add('active');
         updateProgressBar();
-        if(idx === 7) launchConfetti();
+        if(idx === 8) launchConfetti(); // Updated to last slide index
     }
     window.nextSlide = function() { if(STATE.currentSlide < SLIDES_COUNT - 1) window.goToSlide(STATE.currentSlide + 1); }
     window.prevSlide = function() { if(STATE.currentSlide > 1) window.goToSlide(STATE.currentSlide - 1); }
@@ -390,12 +424,15 @@
     }
     function launchConfetti() { confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#e44232', '#fff'] }); }
 
-    function renderCharts(wData, hData) {
+    function renderCharts(wData, hData, pLabels, pData) {
+        // Week Chart
         if(STATE.charts['week']) STATE.charts['week'].destroy();
         STATE.charts['week'] = new Chart(document.getElementById('week-chart'), {
             type: 'bar', data: { labels: ['S','M','T','W','T','F','S'], datasets: [{ data: wData, backgroundColor: '#fff', borderRadius: 4 }] },
             options: { plugins: { legend: false }, scales: { x: { ticks: {color:'white'} }, y: { display: false } }, maintainAspectRatio: false }
         });
+
+        // Hour Chart
         if(STATE.charts['hour']) STATE.charts['hour'].destroy();
         const timeLabels = [...Array(24).keys()].map(h => {
             const a = h >= 12 ? 'PM' : 'AM';
@@ -405,6 +442,32 @@
         STATE.charts['hour'] = new Chart(document.getElementById('hour-chart'), {
             type: 'line', data: { labels: timeLabels, datasets: [{ data: hData, borderColor: '#e44232', borderWidth: 3, pointRadius: 0, tension: 0.4 }] },
             options: { plugins: { legend: false }, scales: { x: { ticks: {color:'rgba(255,255,255,0.7)', maxTicksLimit:8} }, y: { display: false } }, maintainAspectRatio: false }
+        });
+
+        // Project Chart (New)
+        if(STATE.charts['project']) STATE.charts['project'].destroy();
+        STATE.charts['project'] = new Chart(document.getElementById('project-chart'), {
+            type: 'bar', 
+            data: { 
+                labels: pLabels, 
+                datasets: [{ 
+                    data: pData, 
+                    backgroundColor: '#e44232', 
+                    borderRadius: 4 
+                }] 
+            },
+            options: { 
+                indexAxis: 'y',
+                plugins: { legend: false }, 
+                scales: { 
+                    x: { display: false }, 
+                    y: { 
+                        ticks: { color: 'white', font: { size: 14, weight: 'bold' } },
+                        grid: { display: false }
+                    } 
+                }, 
+                maintainAspectRatio: false 
+            }
         });
     }
 
