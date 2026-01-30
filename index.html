@@ -85,6 +85,7 @@
     <div class="comm-stat">Tasks: <strong id="global-tasks">...</strong></div>
     <div class="comm-stat">Projects: <strong id="global-projects">...</strong></div>
     <div class="comm-stat">Wrappeds: <strong id="global-wrappeds">...</strong></div>
+    <div class="comm-stat">Syncs: <strong id="global-syncs">...</strong></div>
 </div>
 
 <div id="community-modal" class="modal-overlay hidden">
@@ -224,6 +225,7 @@
         document.getElementById('global-tasks').innerText = (data.tasks_processed || 0).toLocaleString();
         document.getElementById('global-projects').innerText = (data.projects_processed || 0).toLocaleString();
         document.getElementById('global-wrappeds').innerText = (data.wrappeds_generated || 0).toLocaleString();
+        document.getElementById('global-syncs').innerText = (data.syncs_performed || 0).toLocaleString();
         document.getElementById('comm-total').innerText = (data.tasks_processed || 0).toLocaleString();
         document.getElementById('comm-projects').innerText = (data.projects_processed || 0).toLocaleString();
         const totalDays = data.total_days_logged || 1;
@@ -384,6 +386,10 @@
 
         const updates = {};
         let hasUpdates = false;
+
+        // ALWAYS increment sync count
+        updates['global_stats/syncs_performed'] = increment(1);
+        hasUpdates = true;
 
         if (currentTasks > last.tasks) {
             updates['global_stats/tasks_processed'] = increment(currentTasks - last.tasks);
