@@ -137,7 +137,7 @@
     </div>
 </div>
 
-<div id="view-login" class="container login-box">
+<div id="view-login" class="container login-box hidden">
     <div class="card">
         <h1><i class="fa-solid fa-layer-group"></i> Todoist Analytics</h1>
         <p style="color: var(--text-muted);">Visualize your productivity history.</p>
@@ -280,6 +280,13 @@
         const savedTheme = localStorage.getItem('theme');
         if (savedTheme) { if (savedTheme === 'dark') window.applyTheme('dark'); }
         else { if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) window.applyTheme('dark'); }
+        
+        // CHECK TOKEN AND DECIDE VIEW IMMEDIATELY
+        const token = localStorage.getItem('todoist_token');
+        if (!token) {
+            document.getElementById('view-login').classList.remove('hidden');
+        } 
+        // Else: do nothing, wait for initFetch to unhide dashboard or login(loading)
         
         const projCache = localStorage.getItem('todoist_projects_cache');
         if (projCache) STATE.projectMap = JSON.parse(projCache);
@@ -564,8 +571,11 @@
                 STATE.activeTasks = [...STATE.allTasks];
                 populateProjectFilter();
                 processData();
+                
+                // SHOW DASHBOARD, HIDE LOGIN
                 document.getElementById('view-login').classList.add('hidden');
                 document.getElementById('view-dashboard').classList.remove('hidden');
+                
                 if(STATE.isAuthReady) calculateDeltas();
                 else setTimeout(() => { if(STATE.isAuthReady) calculateDeltas(); }, 2000);
                 STATE.isFetching = false;
@@ -573,7 +583,10 @@
             }
         }
 
+        // SHOW LOADING STATE
+        document.getElementById('view-login').classList.remove('hidden');
         document.getElementById('loading-ui').classList.remove('hidden');
+        
         STATE.allTasks = [];
         let offset = 0, hasMore = true;
 
@@ -622,6 +635,7 @@
             if (STATE.isAuthReady) calculateDeltas();
             else setTimeout(() => calculateDeltas(), 1000);
 
+            // DATA LOADED -> SWITCH VIEWS
             document.getElementById('view-login').classList.add('hidden');
             document.getElementById('view-dashboard').classList.remove('hidden');
         } catch (e) { alert("Fetch failed: " + e.message); }
